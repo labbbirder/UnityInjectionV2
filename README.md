@@ -4,7 +4,7 @@
 
 转载声明：此文档包含博客性质内容，创作不易，转请注。
 
-叠甲声明：本人尚处于学习阶段，内容设计面较广，如有纰漏还请大神读者指出。
+叠甲声明：本人尚处于学习阶段，内容涉及面较广，如有纰漏还请大神读者指出。
 
 
 ## 版本计划
@@ -61,8 +61,8 @@
 
 DotNetDetour方案先压栈保留了原ax的值，而MonoHook直接修改ax。两位作者都没有进行更深入的解析，我只能按照自己的理解分析。
 
-我们知道ax用于函数返回，如果原函数的“5字节”修改了ax，那么是需要保留ax的。对于Debug模式下生成的Jit指令，这显然是成立的，因为每个函数都有前缀的trap codes，远大于跳转指令长度；但是Release模式下，如果jit code过早的mov ax，或者call xxx，那么ax是处于修改状态的，需要保留。
-
+我们知道ax用于函数返回，如果原函数的“5字节”修改了ax，那么是需要保留ax的。对于Debug模式下生成的Jit指令，这显然是成立的，因为每个函数都有前缀的[prologue emission](https://github.com/dotnet/runtime/blob/bc9fc5a774d96f95abe0ea5c90fac48b38ed2e67/src/mono/mono/mini/mini-x86.c#L4984)，远大于跳转指令长度；但是Release模式下，如果jit code过早的mov ax，或者call xxx，那么ax是处于修改状态的，需要保留。
+> 这里的Debug和Release实际上是多个选项的组合，包括`-optimize`,`-debug`等
 ### 2.2 多线程访问
 
 DotNetDetour的作者bigbaldy1128大神在博客中提到过：
@@ -72,10 +72,10 @@ DotNetDetour的作者bigbaldy1128大神在博客中提到过：
 
 想要彻底解决race condition:
 
-* 获取当前进程下所有线程，将函数id转为Windows下的Handle，再调用Kernel32的SuspendThread方法；循环挂起，直到没有新的线程；“install”；恢复挂起的线程
+* 获取当前进程下所有线程，将线程id转为Windows下的Handle，再调用Kernel32的SuspendThread方法；循环挂起，直到没有新的线程；“install”；恢复挂起的线程
 * 修改内存Flag为CopyOnWrite，在memcpy结束后修改函数指针入口
 
-### 2.3 代理函数注入方法
+### 2.3 ProxyMethod注入方法
 
 上述两个仓库的实现在这点上有所不同，DotNetDetour是修改函数入口，而MonoHook直接修改函数jit code。
 
@@ -93,13 +93,13 @@ DotNetDetour的作者bigbaldy1128大神在博客中提到过：
 
 为了使gc正常工作，我们在修改了内存中的引用后，需要调用一次gc_wbarrier，将白色垃圾置灰，此方法在gc库中实现。然而，考虑到运行时的gc库可能各不相同，如：低版本mono和il2cpp的BoehmGC、高版本clr的SGenGC、一些项目替换的其他gc实现等。
 
-因此，确定一个可靠的写屏障方法变得困难。
+~~因此，确定一个可靠的写屏障方法变得困难。~~
 
-### 2.5 修改方法的导出问题（入口修改副作用）
+### 2.5 clr内部方法的导出问题（入口修改副作用）
 
 比如，修改方法用到了mono_jit_info_table_find，这个方法因为是export function，所以才可以调用；除此之外，还有icall指令可以用类似的方法访问。
 
-Unity可以使用libMono中的export function，得益于UnityEditor只是将libMono作为动态库加载。但是对于纯c#环境，不能直接访问到此方法。
+Unity可以使用`mono-2.0-bdwgc`中的export function，得益于UnityEditor只是将`mono-2.0-bdwgc`作为动态库加载。但是对于纯c#环境，不能直接访问到此方法。
 
 理论上讲，只要我们能够获得方法的地址，我们就可以调用对应clr内部方法。我们可以通过符号表、地址偏移等方法得到一个特定环境下的入口，但是此类方法难以普及，并且可能非常不稳定。
 
@@ -118,7 +118,6 @@ TargetMethod(); // not hooked
 
 此问题在不同的cpu上会有不同的表现。在Install时可以使用extern调用`mfence`的方式保证icache有效性。
 
-
 ### 2.7 Jit code共享（函数体修改副作用）
 
 对于相同的jit方法，共享一份jit code是可行的。
@@ -126,6 +125,8 @@ TargetMethod(); // not hooked
 然而事实上，通过阅读源码发现`dotnet/runtime`没有对相同的jit code进行共享，因此修改特定方法的jit code不会有副作用。
 
 但是不同的clr种类、未来的版本中，很难保证不会引入jit共享的特性。
+
+> 会影响调试器的正常工作，因此在debug模式下，通常不会运用这种特性
 
 ### 2.8 Inline Method
 对于如下代码：
@@ -155,6 +156,8 @@ void Bar(){
 ```
 
 然而对于一个目标方法，在运行时无法给定`MethodImplOptions.NoInlining`，时机往往太迟了。
+
+> 会影响调试器的正常工作，因此在debug模式下，通常不会运用这种特性
 
 ### 2.9 Delegate 和 CX寄存器
 
