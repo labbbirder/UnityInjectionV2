@@ -116,7 +116,7 @@ HookTool.Install();
 TargetMethod(); // not hooked
 ```
 
-此问题在不同的cpu上会有不同的表现。在Install时可以使用extern调用`mfence`的方式保证icache有效性。
+此问题在不同的cpu上会有不同的表现。在Install时可以使用`P/Invoke`调用`mfence`的方式保证icache有效性。
 
 ### 2.7 Jit code共享（函数体修改副作用）
 
