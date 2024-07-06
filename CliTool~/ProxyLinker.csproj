@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<TargetFramework>net6.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<StartupObject>BBBirder.UnityInjection.Tools.ProxyLinkerProgram</StartupObject>
+		<OutputType>Exe</OutputType>
+		<OutputPath>../Tools</OutputPath>
+		<EnableDefaultItems>false</EnableDefaultItems>
+	</PropertyGroup>
+	<ItemGroup>
+		<Compile Include="Common.cs" />
+		<Compile Include="ProxyLinker*.cs" />
+		<Compile Include="../Editor/ToolsConstants.cs" />
+		<Compile Include="../Runtime/Logger.cs" />
+	</ItemGroup>
+</Project>

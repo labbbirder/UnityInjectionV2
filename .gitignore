@@ -1,0 +1,6 @@
+*.exe
+*.exe.meta
+.vs
+obj
+Tools/net6.0/ProxyLinker.meta
+Tools/net6.0/ProxyLinker

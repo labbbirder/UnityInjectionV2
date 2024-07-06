@@ -1,0 +1,23 @@
+{
+    "name": "BBBirder.UnityInjection.Editor",
+    "rootNamespace": "BBBirder.UnityInjection.Editor",
+    "references": [
+        "BBBirder.UnityInjection",
+        "com.bbbirder.directattribute"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "Mono.Cecil.dll",
+        "Newtonsoft.Json.dll",
+        "Scriban.dll"
+    ],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

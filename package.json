@@ -1,10 +1,18 @@
 {
   "name": "com.bbbirder.unity-injection",
-  "displayName": "unity-injection",
-  "version": "0.0.1",
+  "displayName": "Unity Injection V2",
+  "description": "Unity注入模块，可以运行时改变被注入函数实现。",
+  "version": "2.0.0",
   "hideInEditor": false,
-  "scripts": {
-    
+  "author": "bbbirder <502100554@qq.com>",
+  "dependencies": {
+    "com.bbbirder.directattribute": "2.0.1",
+    "com.unity.nuget.mono-cecil": "1.10.2"
   },
-  "author": "bbbirder <502100554@qq.com>"
+  "samples": [
+    {
+      "displayName": "Method Fix",
+      "path": "Samples~/MethodFix"
+    }
+  ]
 }
