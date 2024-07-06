@@ -17,7 +17,7 @@ Unity 注入模块，可以运行时改变被注入函数实现。
 | 6000.0.x | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: |
 | Tuanjie  | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: |
 
-> 包括： (Mac + Windows) x (IL2CPP + Mono + Editor) x $(U3D_{tj}+\sum_{v=2021.3}^{6000.0}U3D_v )$
+> 包括： (Mac + Windows) x (IL2CPP + Mono + Editor) x $\sum unity$
 
 ## 这是Unity Injection V2
 
