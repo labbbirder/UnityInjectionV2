@@ -1,8 +1,8 @@
-{
+﻿{
   "name": "com.bbbirder.unity-injection",
   "displayName": "Unity Injection V2",
   "description": "Unity注入模块，可以运行时改变被注入函数实现。",
-  "version": "2.0.0",
+  "version": "2.0.2",
   "hideInEditor": false,
   "author": "bbbirder <502100554@qq.com>",
   "dependencies": {

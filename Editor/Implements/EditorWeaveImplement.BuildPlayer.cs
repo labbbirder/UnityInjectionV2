@@ -8,7 +8,6 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Runtime.InteropServices;
 using MonoHook;
-using Newtonsoft.Json;
 using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
@@ -18,6 +17,7 @@ using UnityEngine;
 using System.Threading;
 using System.IO.Pipes;
 using System.Threading.Tasks;
+
 namespace BBBirder.UnityInjection.Editor
 {
     using static ToolsConstants;
@@ -157,8 +157,25 @@ namespace BBBirder.UnityInjection.Editor
         static void WaitForLinkerCompleteAndWeaveAssemblies(CancellationToken token)
         {
             // init pipe
-            using var server = new NamedPipeServerStream(LINKER_PIPE_NAME);
-            token.Register(() => server.Close());
+            using var server = new NamedPipeServerStream(LINKER_PIPE_NAME, PipeDirection.InOut, 2);
+            token.Register(() =>
+            {
+                //See: https://github.com/dotnet/corefx/pull/24798
+                using var c = new NamedPipeClientStream(LINKER_PIPE_NAME);
+                try
+                {
+                    c.Connect(3_000);
+                    if (c.IsConnected)
+                    {
+                        c.WriteByte(0);
+                        c.Flush();
+                    }
+                }
+                finally
+                {
+                    c.Close();
+                }
+            });
             server.WaitForConnection();
 
             // read output path
@@ -169,6 +186,7 @@ namespace BBBirder.UnityInjection.Editor
                 bytes.Add(b);
             }
             var outputDir = Encoding.UTF8.GetString(bytes.ToArray());
+            if (string.IsNullOrEmpty(outputDir)) return;
 
             // do weave
             ProxyLinkerResultCode exitCode = ProxyLinkerResultCode.Success;
@@ -247,17 +265,12 @@ namespace BBBirder.UnityInjection.Editor
         public override void OnPostprocessBuild(BuildReport report)
         {
             if (!IsUsedAsRuntimeImplement) return;
-            if (linkerToken != null)
-            {
-                linkerToken.Cancel();
-                linkerToken = null;
-            }
-            if (proxyTask != null)
-            {
-                proxyTask.Dispose();
-                proxyTask = null;
-                Debug.Log("dispose task");
-            }
+            // if (linkerToken != null) //See: https://forum.unity.com/threads/ipostprocessbuildwithreport-and-qa-embarrasing-answer-about-a-serious-bug.891055/#post-5854072
+            // {
+            //     linkerToken.Cancel();
+            //     linkerToken = null;
+            // }
+
             // restore stripping level
             var namedBuildTarget = NamedBuildTarget.FromBuildTargetGroup(report.summary.platformGroup);
             var prev = PlayerSettings.GetManagedStrippingLevel(namedBuildTarget);
@@ -272,7 +285,19 @@ namespace BBBirder.UnityInjection.Editor
         //     SafelyWeaveInjectionInfos_Impl(weavingRecords, allowedAssemblies);
         // }
 
-        public void OnCompiledAssemblies_BuildPlayer(bool isEditor, string[] assemblies) { }
+        public void OnCompiledAssemblies_BuildPlayer(bool isEditor, bool hasError, string[] assemblies)
+        {
+            if (hasError)
+            {
+                Logger.Info($"start check token {linkerToken != null}");
+                if (linkerToken != null)
+                {
+                    Logger.Info($"cancel token");
+                    linkerToken.Cancel();
+                    linkerToken = null;
+                }
+            }
+        }
 
         static ManagedStrippingLevel strippingLevel;
 

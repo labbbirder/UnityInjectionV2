@@ -195,6 +195,7 @@ namespace BBBirder.UnityInjection
             Instance.RuntimeImplement.OnDomainReload();
 
             bool BuildingForEditor = true;
+            bool hasError = false;
             HashSet<string> compiledAssemblies = new();
             UnityEditor.Compilation.CompilationPipeline.compilationStarted += (o) =>
             {
@@ -212,14 +213,15 @@ namespace BBBirder.UnityInjection
             UnityEditor.Compilation.CompilationPipeline.assemblyCompilationFinished += (path, msg) =>
             {
                 var fullPath = Path.GetFullPath(path);
+                hasError |= msg.Any(m => m.type == UnityEditor.Compilation.CompilerMessageType.Error);
                 compiledAssemblies.Add(fullPath);
             };
 
             UnityEditor.Compilation.CompilationPipeline.compilationFinished += (o) =>
             {
                 Logger.Verbose("compilation finished");
-                Instance.EditorImplement.OnCompiledAssemblies(BuildingForEditor, compiledAssemblies.ToArray());
-                Instance.RuntimeImplement.OnCompiledAssemblies(BuildingForEditor, compiledAssemblies.ToArray());
+                Instance.EditorImplement.OnCompiledAssemblies(BuildingForEditor, hasError, compiledAssemblies.ToArray());
+                Instance.RuntimeImplement.OnCompiledAssemblies(BuildingForEditor, hasError, compiledAssemblies.ToArray());
             };
 
             AssemblyReloadEvents.beforeAssemblyReload += () =>

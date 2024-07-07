@@ -13,7 +13,6 @@
     "overrideReferences": true,
     "precompiledReferences": [
         "Mono.Cecil.dll",
-        "Newtonsoft.Json.dll",
         "Scriban.dll"
     ],
     "autoReferenced": true,

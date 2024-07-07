@@ -4,7 +4,6 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using Newtonsoft.Json;
 using UnityEditor;
 
 namespace BBBirder.UnityInjection.Editor

@@ -14,9 +14,9 @@ namespace BBBirder.UnityInjection.Editor
             if (IsUsedAsEditorImplement) OnDomainReload_Incremental();
         }
 
-        public override void OnCompiledAssemblies(bool isEditor, string[] assemblies)
+        public override void OnCompiledAssemblies(bool isEditor, bool hasError, string[] assemblies)
         {
-            if (IsUsedAsRuntimeImplement) OnCompiledAssemblies_BuildPlayer(isEditor, assemblies);
+            if (IsUsedAsRuntimeImplement) OnCompiledAssemblies_BuildPlayer(isEditor, hasError, assemblies);
             if (IsUsedAsEditorImplement) OnCompiledAssemblies_Incremental(isEditor, assemblies);
         }
 

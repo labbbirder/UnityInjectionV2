@@ -18,7 +18,7 @@ namespace BBBirder.UnityInjection
         bool IsInjected(MethodBase method);
 #if UNITY_EDITOR
         void OnDomainReload();
-        void OnCompiledAssemblies(bool isEditor, string[] assemblies);
+        void OnCompiledAssemblies(bool isEditor, bool hasError, string[] assemblies);
         void OnPreprocessBuild(BuildReport report);
         void OnPostprocessBuild(BuildReport report);
 #endif
@@ -92,7 +92,7 @@ namespace BBBirder.UnityInjection
         public virtual void OnDomainReload() { }
         // public virtual void OnCompileAssembliesStart(bool isEditor) { }
         // public virtual void OnCompileAssembly(string assemblyFullPath) { }
-        public virtual void OnCompiledAssemblies(bool isEditor, string[] assemblies) { }
+        public virtual void OnCompiledAssemblies(bool isEditor, bool hasError, string[] assemblies) { }
         public virtual void OnPreprocessBuild(BuildReport report) { }
         public virtual void OnPostprocessBuild(BuildReport report) { }
 #endif
