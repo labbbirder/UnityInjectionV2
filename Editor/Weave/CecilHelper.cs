@@ -89,25 +89,36 @@ namespace BBBirder.UnityInjection.Editor
             });
 
             var isDirty = false;
+            TypeDefinition markAttributeTypeDef = null;
 
-            foreach (var record in weavingRecords.Distinct())
+            foreach (var injectionInfo in injectionInfos.Distinct())
             {
-                var (_, klsSig, mthSig) = record;
-                var methodName = mthSig.Split(".")[^1];
-                var targetType = targetAssembly.MainModule.FindTypeBySignature(klsSig);
-                if (targetType is null)
-                {
-                    Logger.Warning($"Cannot find Type `{klsSig}` in target assembly {assemblyPath}");
-                    continue;
-                }
-                var targetMethod = targetType.FindMethodBySignature(mthSig);
+                // var (_, klsSig, mthSig) = injectionInfo;
+                // var methodName = mthSig.Split(".")[^1];
+                var targetType = targetAssembly.MainModule.FindTypeBySignature(injectionInfo.InjectedMethod.DeclaringType.GetSignature());
+
+                // if (targetType is null)
+                // {
+                //     Logger.Warning($"Cannot find Type `{klsSig}` in target assembly {assemblyPath}");
+                //     continue;
+                // }
+                // var targetMethod = targetAssembly.MainModule..ImportReference(injectionInfo.InjectedMethod).Resolve();
+                var targetMethod = targetType.FindMethodBySignature(injectionInfo.InjectedMethod.GetSignature());
                 if (targetMethod is null)
                 {
-                    Logger.Warning($"Cannot find Method `{mthSig}` in Type `{klsSig}`");
+                    Logger.Warning($"Cannot find Method `{targetMethod}`");
                     continue;
                 }
-
-                isDirty |= record.customWeaveAction(targetMethod);
+                // var targetType = targetMethod.DeclaringType;
+                if ((injectionInfo.customWeaveAction ?? DefaultWeaveAction)(targetMethod))
+                {
+                    isDirty = true;
+                }
+                markAttributeTypeDef ??= targetAssembly.GetOrCreateMarkAttribute();
+                if (!IsExistsMethodMarkAttribute(targetMethod, markAttributeTypeDef))
+                {
+                    targetMethod.AddMethodMarkAttribute(markAttributeTypeDef);
+                }
             }
 
             // targetAssembly.RegenerateUnitySignature(additionalTypes);
@@ -515,39 +526,42 @@ namespace BBBirder.UnityInjection.Editor
             }
         }
 
-
         internal static TypeReference FindCorrespondingType(this ModuleDefinition module, System.Type type)
         {
-            if (type == null) return null;
-            var assemblyResolver = module.AssemblyResolver as UnityEditorAssemblyResolver;
-
-            var assemblyName = type.Assembly.GetName();
-            var signature = type.GetSignature();
-
-            var result = module.FindTypeBySignature(signature);
-            // Logger.Verbose($"{module}, {type} this find {result}");
-            if (result != null) return result;
-
-            var corlib = assemblyResolver.FindAssembly("mscorlib")?.MainModule;
-            // Logger.Verbose("got corlib " + corlib);
-            result = corlib.FindTypeBySignature(signature);
-            // Logger.Verbose($"{module}, {type} corlib '{corlib}' find {result}");
-            if (result != null) return module.ImportReference(result);
-
-            var possibleModule = assemblyResolver.FindAssembly(assemblyName.Name)?.MainModule;
-            if (possibleModule != null)
-            {
-                result = possibleModule.FindTypeBySignature(signature);
-                // Logger.Verbose($"{module}, {type} search name find {result}");
-                if (result != null) return module.ImportReference(result);
-            }
-
-            // var correspondingName = new AssemblyNameDefinition(assemblyName.Name, assemblyName.Version);
-            // var correspondingModule = module.AssemblyResolver.Resolve(correspondingName).MainModule;
-            // var typeDefinition = correspondingModule.FindTypeBySignature(signature);
-            // Logger.Verbose($"{module}, {type} from {result.Module}");
-            return module.ImportReference(result);
+            return module.ImportReference(type);
         }
+        // internal static TypeReference FindCorrespondingType(this ModuleDefinition module, System.Type type)
+        // {
+        //     if (type == null) return null;
+        //     var assemblyResolver = module.AssemblyResolver as UnityEditorAssemblyResolver;
+
+        //     var assemblyName = type.Assembly.GetName();
+        //     var signature = type.GetSignature();
+
+        //     var result = module.FindTypeBySignature(signature);
+        //     // Logger.Verbose($"{module}, {type} this find {result}");
+        //     if (result != null) return result;
+
+        //     var corlib = assemblyResolver.FindAssembly("mscorlib")?.MainModule;
+        //     // Logger.Verbose("got corlib " + corlib);
+        //     result = corlib.FindTypeBySignature(signature);
+        //     // Logger.Verbose($"{module}, {type} corlib '{corlib}' find {result}");
+        //     if (result != null) return module.ImportReference(result);
+
+        //     var possibleModule = assemblyResolver.FindAssembly(assemblyName.Name)?.MainModule;
+        //     if (possibleModule != null)
+        //     {
+        //         result = possibleModule.FindTypeBySignature(signature);
+        //         // Logger.Verbose($"{module}, {type} search name find {result}");
+        //         if (result != null) return module.ImportReference(result);
+        //     }
+
+        //     // var correspondingName = new AssemblyNameDefinition(assemblyName.Name, assemblyName.Version);
+        //     // var correspondingModule = module.AssemblyResolver.Resolve(correspondingName).MainModule;
+        //     // var typeDefinition = correspondingModule.FindTypeBySignature(signature);
+        //     // Logger.Verbose($"{module}, {type} from {result.Module}");
+        //     return module.ImportReference(result);
+        // }
 
         /// <summary>
         /// Create a delegate for the given method.

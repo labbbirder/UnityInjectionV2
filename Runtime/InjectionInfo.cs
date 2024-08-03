@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
+using System.Runtime.CompilerServices;
 using com.bbbirder;
 
 #if UNITY_EDITOR
@@ -29,15 +30,16 @@ namespace BBBirder.UnityInjection
 #if UNITY_EDITOR
         public Func<MethodDefinition, bool> customWeaveAction;
 #endif
+        public Action<InjectionInfo> customInstallAction;
         // public Action<Delegate> OriginReceiver;
         public Action onStartFix;
         protected InjectionInfo()
         {
         }
-        public void InitWithProxyDelegate(Delegate proxyMethod)
-        {
+        // public void InitWithProxyDelegate(Delegate proxyMethod)
+        // {
 
-        }
+        // }
         public InjectionInfo(TargetMethodType targetMethod, Func<Delegate, MethodInfo> transformer)
         {
             InjectedMethod = targetMethod;

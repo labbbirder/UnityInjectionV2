@@ -28,7 +28,14 @@ namespace BBBirder.UnityInjection
             registry[assembly] = injectionInfos;
             foreach (var info in injectionInfos)
             {
-                FixMethod(info);
+                try
+                {
+                    ; (info.customInstallAction ?? FixMethod)(info);
+                }
+                catch (Exception e)
+                {
+                    Logger.Error(e);
+                }
             }
         }
 
