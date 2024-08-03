@@ -58,11 +58,11 @@ namespace BBBirder.UnityInjection.Editor
                 EditorApplication.QueuePlayerLoopUpdate();
             }
 
-            EphemeronSettings.instance.weavingRecords = allInjectionInfos
-                .Select(WeavingRecord.FromInjectionInfo)
-                .ToArray()
-                ;
-            EphemeronSettings.instance.Save();
+            // EphemeronSettings.instance.weavingRecords = allInjectionInfos
+            //     .Select(WeavingRecord.FromInjectionInfo)
+            //     .ToArray()
+            //     ;
+            // EphemeronSettings.instance.Save();
         }
 
         static void SafelyWeaveInjectionInfos(InjectionInfo[] injectionInfos)

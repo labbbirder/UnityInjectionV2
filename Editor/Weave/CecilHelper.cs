@@ -24,7 +24,11 @@ namespace BBBirder.UnityInjection.Editor
                 if (!cache.TryGetValue(name, out var assemblyDefinition))
                 {
                     var path = allowedAssemblies.FirstOrDefault(a => Path.GetFileNameWithoutExtension(a) == name);
-                    cache[name] = assemblyDefinition = ModuleDefinition.ReadModule(path).Assembly;
+                    cache[name] = assemblyDefinition = ModuleDefinition.ReadModule(path, new ReaderParameters()
+                    {
+                        InMemory = true,
+                        ReadingMode = ReadingMode.Immediate,
+                    }).Assembly;
                 }
                 return assemblyDefinition;
             }
@@ -58,7 +62,7 @@ namespace BBBirder.UnityInjection.Editor
             }
         }
 
-        public static void InjectAssembly(string assemblyPath, WeavingRecord[] weavingRecords, string[] allowedAssemblies, string outputPath)
+        public static void InjectAssembly(string assemblyPath, InjectionInfo[] injectionInfos, string[] allowedAssemblies, string outputPath)
         {
             Logger.Info("weave assembly: " + assemblyPath);
             using var assemblyResolver = new UnityEditorAssemblyResolver()

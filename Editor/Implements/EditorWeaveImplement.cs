@@ -33,11 +33,12 @@ namespace BBBirder.UnityInjection.Editor
             foreach (var group in injectionInfos.GroupBy(info => info.InjectedMethod.DeclaringType.Assembly))
             {
                 var assembly = group.Key;
-                var weavingRecords = group.Select(WeavingRecord.FromInjectionInfo)
-                    .Distinct()
-                    .Where(s => !string.IsNullOrEmpty(s.klassSignature) && !string.IsNullOrEmpty(s.methodSignature))
-                    .ToArray()
-                    ;
+                var assemblyInjections = group.ToArray();
+                // var weavingRecords = group.Select(WeavingRecord.FromInjectionInfo)
+                //     .Distinct()
+                //     .Where(s => !string.IsNullOrEmpty(s.klassSignature) && !string.IsNullOrEmpty(s.methodSignature))
+                //     .ToArray()
+                //     ;
                 var inputPath = assembly.Location;
                 if (string.IsNullOrEmpty(inputPath) && assemblyLocator != null)
                 {
@@ -54,19 +55,19 @@ namespace BBBirder.UnityInjection.Editor
                     // Logger.Error(string.Join('\n', assemblyLocator.AsEnumerable()));
                     throw new Exception($"Fail to locate assembly {assembly}");
                 }
-                SafelyWeaveAssembly(inputPath, weavingRecords, allowedAssemblies);
+                SafelyWeaveAssembly(inputPath, assemblyInjections, allowedAssemblies);
             }
         }
 
-        static void SafelyWeaveInjectionInfos_Impl(WeavingRecord[] records, string[] allowedAssemblies)
+        static void SafelyWeaveInjectionInfos_Impl(InjectionInfo[] records, string[] allowedAssemblies)
         {
             var assemblyName2Location = allowedAssemblies.ToDictionary(Path.GetFileNameWithoutExtension, s => s);
-            foreach (var group in records.GroupBy(info => info.assemblyName))
+            foreach (var group in records.GroupBy(info => info.InjectedMethod.DeclaringType.Assembly))
             {
-                var assemblyName = group.Key;
+                var assemblyName = group.Key.GetName().Name;
                 var weavingRecords = group
                     .Distinct()
-                    .Where(s => !string.IsNullOrEmpty(s.klassSignature) && !string.IsNullOrEmpty(s.methodSignature))
+                    // .Where(s => !string.IsNullOrEmpty(s.klassSignature) && !string.IsNullOrEmpty(s.methodSignature))
                     .ToArray()
                     ;
                 var inputPath = assemblyName2Location.GetValueOrDefault(assemblyName);
@@ -80,19 +81,19 @@ namespace BBBirder.UnityInjection.Editor
             }
         }
 
-        static void SafelyWeaveAssembly(string inputPath, WeavingRecord[] weavingRecords, string[] allowedAssemblies)
+        static void SafelyWeaveAssembly(string assemblyPath, InjectionInfo[] injectionInfos, string[] allowedAssemblies)
         {
-            var inputFullPath = Path.GetFullPath(inputPath);
+            var inputFullPath = Path.GetFullPath(assemblyPath);
             var isGeneratedAssembly = inputFullPath.StartsWith(Path.GetFullPath("Library"))
                 || inputFullPath.StartsWith(Path.GetFullPath("Temp"))
                 ;
             // engine dlls should be backed up
             if (!isGeneratedAssembly)
             {
-                TryBackup(inputPath);
-                TryBackup(Path.ChangeExtension(inputPath, ".pdb"));
+                TryBackup(assemblyPath);
+                TryBackup(Path.ChangeExtension(assemblyPath, ".pdb"));
             }
-            CecilHelper.InjectAssembly(inputPath, weavingRecords, allowedAssemblies, inputPath);
+            CecilHelper.InjectAssembly(assemblyPath, injectionInfos, allowedAssemblies, assemblyPath);
             static bool TryBackup(string inputPath)
             {
                 if (!File.Exists(inputPath))
