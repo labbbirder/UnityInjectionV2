@@ -177,7 +177,7 @@ namespace BBBirder.UnityInjection
 
 #if UNITY_EDITOR
 
-    partial class InjectionDriver : IPreprocessBuildWithReport, IPostprocessBuildWithReport
+    partial class InjectionDriver : IPreprocessBuildWithReport, IPostprocessBuildWithReport, IPostBuildPlayerScriptDLLs
     {
         public int callbackOrder => -1;
 
@@ -311,6 +311,11 @@ namespace BBBirder.UnityInjection
             Logger.Verbose("OnPostprocessBuild" + report.name);
             // Instance.EditorImplement.OnPostprocessBuild(report);
             Instance.RuntimeImplement.OnPostprocessBuild(report);
+        }
+
+        public void OnPostBuildPlayerScriptDLLs(BuildReport report)
+        {
+            Instance.RuntimeImplement.OnPostBuildPlayerDll(report);
         }
     }
 #endif

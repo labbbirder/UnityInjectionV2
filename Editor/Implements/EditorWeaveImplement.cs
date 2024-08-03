@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using UnityEditor.Build.Reporting;
 
 namespace BBBirder.UnityInjection.Editor
 {
@@ -10,14 +11,21 @@ namespace BBBirder.UnityInjection.Editor
     {
         public override void OnDomainReload()
         {
-            if (IsUsedAsRuntimeImplement) OnDomainReload_BuildPlayer();
+            // if (IsUsedAsRuntimeImplement) OnDomainReload_BuildPlayer();
             if (IsUsedAsEditorImplement) OnDomainReload_Incremental();
         }
 
         public override void OnCompiledAssemblies(bool isEditor, bool hasError, string[] assemblies)
         {
-            if (IsUsedAsRuntimeImplement) OnCompiledAssemblies_BuildPlayer(isEditor, hasError, assemblies);
+            // if (IsUsedAsRuntimeImplement) OnCompiledAssemblies_BuildPlayer(isEditor, hasError, assemblies);
             if (IsUsedAsEditorImplement) OnCompiledAssemblies_Incremental(isEditor, assemblies);
+        }
+
+        public override void OnPostBuildPlayerDll(BuildReport report)
+        {
+            // var weavingRecords = EphemeronSettings.instance.weavingRecords;
+            var dlls = report.GetFiles().Select(f => f.path).Where(p => p.EndsWith(".dll")).ToArray();
+            SafelyWeaveInjectionInfos_Impl(InjectionDriver.GetInjectionInfos().ToArray(), dlls);
         }
 
         static void SafelyWeaveInjectionInfos_Impl(InjectionInfo[] injectionInfos, string[] allowedAssemblies, Dictionary<Assembly, string> assemblyLocator)

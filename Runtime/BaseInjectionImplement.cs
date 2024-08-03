@@ -21,6 +21,7 @@ namespace BBBirder.UnityInjection
         void OnCompiledAssemblies(bool isEditor, bool hasError, string[] assemblies);
         void OnPreprocessBuild(BuildReport report);
         void OnPostprocessBuild(BuildReport report);
+        void OnPostBuildPlayerDll(BuildReport report);
 #endif
     }
 
@@ -95,6 +96,7 @@ namespace BBBirder.UnityInjection
         public virtual void OnCompiledAssemblies(bool isEditor, bool hasError, string[] assemblies) { }
         public virtual void OnPreprocessBuild(BuildReport report) { }
         public virtual void OnPostprocessBuild(BuildReport report) { }
+        public virtual void OnPostBuildPlayerDll(BuildReport report) { }
 #endif
     }
 }

@@ -1,4 +1,4 @@
-#define PROXY_LINKER_APPROACH
+// #define PROXY_LINKER_APPROACH
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -277,13 +277,6 @@ namespace BBBirder.UnityInjection.Editor
             Logger.Verbose($"set stripping level from {prev} to {strippingLevel}");
             PlayerSettings.SetManagedStrippingLevel(namedBuildTarget, strippingLevel);
         }
-
-        // // Invoked by ProxyLinker
-        // public static void WeaveAllAssembliesForPlayer(string[] allowedAssemblies)
-        // {
-        //     var weavingRecords = EphemeronSettings.instance.weavingRecords;
-        //     SafelyWeaveInjectionInfos_Impl(weavingRecords, allowedAssemblies);
-        // }
 
         public void OnCompiledAssemblies_BuildPlayer(bool isEditor, bool hasError, string[] assemblies)
         {
