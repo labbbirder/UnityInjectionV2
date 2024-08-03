@@ -3,7 +3,8 @@ using com.bbbirder;
 
 namespace BBBirder.UnityInjection
 {
-    public interface IInjectionProvider : IDirectRetrieve
+    [RetrieveSubtype]
+    public interface IInjectionProvider
     {
         /// <summary>
         /// set this property to populate injections
