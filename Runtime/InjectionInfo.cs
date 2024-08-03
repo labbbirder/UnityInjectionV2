@@ -133,7 +133,11 @@ namespace BBBirder.UnityInjection
                     ;
                 var injections2 = Retriever.GetAllSubtypes<IInjectionProvider>(assembly)
                     .Where(type => !type.IsInterface && !type.IsAbstract)
-                    .Select(type => System.Activator.CreateInstance(type) as IInjectionProvider)
+                    .Select(type =>
+                    {
+                        IInjectionProvider provider = ReflectionHelper.CreateInstance(type) as IInjectionProvider;
+                        return provider;
+                    })
                     .SelectMany(ii => ii.ProvideInjections())
                     ;
                 s_cache[assembly] = injectionInfos = injections.Concat(injections2).ToArray();

@@ -165,7 +165,7 @@ namespace BBBirder.UnityInjection
             var injections2 = assemblies
                 .SelectMany(a => Retriever.GetAllSubtypes<IInjectionProvider>(a))
                 .Where(type => !type.IsInterface && !type.IsAbstract)
-                .Select(type => System.Activator.CreateInstance(type) as IInjectionProvider)
+                .Select(type => ReflectionHelper.CreateInstance(type) as IInjectionProvider)
                 .SelectMany(ii => ii.ProvideInjections())
                 ;
             return injections.Concat(injections2).ToArray();

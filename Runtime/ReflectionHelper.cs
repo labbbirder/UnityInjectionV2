@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text;
 
 namespace BBBirder.UnityInjection
@@ -15,6 +16,24 @@ namespace BBBirder.UnityInjection
         {
             public Type[] klassGenericArguments;
             public Type[] methodGenericArguments;
+        }
+
+        public static object CreateInstance(Type type)
+        {
+            if (!type.IsSubclassOf(typeof(UnityEngine.Object)) && HasDefaultConstructor(type))
+            {
+                return Activator.CreateInstance(type);
+            }
+            else
+            {
+                RuntimeHelpers.RunClassConstructor(type.TypeHandle);
+                return RuntimeHelpers.GetUninitializedObject(type);
+            }
+            static bool HasDefaultConstructor(Type type)
+            {
+                var ctors = type.GetConstructors(BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
+                return ctors.Any(c => c.GetParameters().Length == 0);
+            }
         }
 
         public static MethodBase GetMethod(Expression<Action> expression)
