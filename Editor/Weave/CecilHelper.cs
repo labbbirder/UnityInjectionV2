@@ -895,6 +895,8 @@ namespace BBBirder.UnityInjection.Editor
         /// <returns></returns>
         internal static string GetSignature(this MethodDefinition method)
         {
+            // implement of CLS Rule 43 
+
             var builder = new StringBuilder();
             // append method name
             builder.Append(method.Name);
@@ -905,7 +907,7 @@ namespace BBBirder.UnityInjection.Editor
             }
 
             // append method parameters
-            builder.Append('(');
+            builder.Append('<');
             var declaringType = method.Module.LookupToken(method.DeclaringType.MetadataToken) as TypeReference;
             var parameters = method.Parameters;
             for (int i = 0; i < parameters.Count; i++)
@@ -923,12 +925,12 @@ namespace BBBirder.UnityInjection.Editor
                 {
                     if (gp.Type == GenericParameterType.Type)
                     {
-                        builder.Append(".T");
+                        builder.Append("!");
                         builder.Append(gp.Position);
                     }
                     else
                     {
-                        builder.Append(".T");
+                        builder.Append("!");
                         builder.Append(gp.Position + klassGenericArguments.Count);
                     }
                 }
@@ -943,7 +945,7 @@ namespace BBBirder.UnityInjection.Editor
                 }
             }
 
-            builder.Append(')');
+            builder.Append('>');
             return builder.ToString();
         }
 

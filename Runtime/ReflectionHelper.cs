@@ -154,6 +154,8 @@ namespace BBBirder.UnityInjection
 
         internal static string GetSignature(this MethodBase method)
         {
+            // implement of CLS Rule 43
+
             // clear generic parameters
             var moduleHandle = method.DeclaringType.Assembly.GetModules()[0].ModuleHandle;
             var unconstructedDeclaringType = method.DeclaringType;
@@ -176,7 +178,7 @@ namespace BBBirder.UnityInjection
 
             // append method parameters
             var klassGenericArguments = method.DeclaringType.GetGenericArguments();
-            builder.Append('(');
+            builder.Append('<');
             var parameters = method.GetParameters();
             for (int i = 0; i < parameters.Length; i++)
             {
@@ -188,12 +190,12 @@ namespace BBBirder.UnityInjection
                 }
                 if (parameterType.IsGenericTypeParameter)
                 {
-                    builder.Append(".T");
+                    builder.Append("!");
                     builder.Append(parameterType.GenericParameterPosition);
                 }
                 else if (parameterType.IsGenericMethodParameter)
                 {
-                    builder.Append(".T");
+                    builder.Append("!");
                     builder.Append(parameterType.GenericParameterPosition + klassGenericArguments.Length);
                 }
                 else
@@ -207,7 +209,7 @@ namespace BBBirder.UnityInjection
                 }
             }
 
-            builder.Append(')');
+            builder.Append('>');
             return builder.ToString();
         }
 
