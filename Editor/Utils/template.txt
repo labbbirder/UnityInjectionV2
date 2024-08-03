@@ -1,6 +1,7 @@
 // Dont Modify It: This is an Auto-Generated File
 using System;
 using System.Reflection;
+using UnityEngine.Scripting;
 
 {{
 func get_pt
@@ -17,12 +18,13 @@ func get_pt
     ret $result
 end
 }}
-namespace BBBirder.UnityInjection.Editor {
+namespace BBBirder.UnityInjection {
     partial class DecoratorAttribute{
     {{~ for cnt in 1..12 ~}}
         {{~pt_gl = get_pt cnt 'Ti' ','~}}
         {{~pt_vl = get_pt cnt 'ti' ','~}}
         {{~pt_dl = get_pt cnt 'Ti _ti' ','~}}
+        [Preserve]
         Func<{{pt_gl}},R> UniversalFunc<{{pt_gl}},R>(MethodInfo mi, Delegate originFunc){
             {{~ for i in 1..cnt ~}}
             T{{i}} t{{i}} = default;
@@ -39,6 +41,7 @@ namespace BBBirder.UnityInjection.Editor {
                 return Decorate<R>(invocation);
             };
         }
+        [Preserve]
         Action<{{pt_gl}}> UniversalAction<{{pt_gl}}>(MethodInfo mi ,Delegate originFunc){
             {{~ for i in 1..cnt ~}}
             T{{i}} t{{i}} = default;

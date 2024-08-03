@@ -1,12 +1,14 @@
 // Dont Modify It: This is an Auto-Generated File
 using System;
 using System.Reflection;
+using UnityEngine.Scripting;
 
 
 namespace BBBirder.UnityInjection
 {
     partial class DecoratorAttribute
     {
+        [Preserve]
         Func<T1, R> UniversalFunc<T1, R>(MethodInfo mi, Delegate originFunc)
         {
             T1 t1 = default;
@@ -22,6 +24,7 @@ namespace BBBirder.UnityInjection
                 return Decorate<R>(invocation);
             };
         }
+        [Preserve]
         Action<T1> UniversalAction<T1>(MethodInfo mi, Delegate originFunc)
         {
             T1 t1 = default;
@@ -41,6 +44,7 @@ namespace BBBirder.UnityInjection
                 Decorate<object>(invocation);
             };
         }
+        [Preserve]
         Func<T1, T2, R> UniversalFunc<T1, T2, R>(MethodInfo mi, Delegate originFunc)
         {
             T1 t1 = default;
@@ -58,6 +62,7 @@ namespace BBBirder.UnityInjection
                 return Decorate<R>(invocation);
             };
         }
+        [Preserve]
         Action<T1, T2> UniversalAction<T1, T2>(MethodInfo mi, Delegate originFunc)
         {
             T1 t1 = default;
@@ -79,6 +84,7 @@ namespace BBBirder.UnityInjection
                 Decorate<object>(invocation);
             };
         }
+        [Preserve]
         Func<T1, T2, T3, R> UniversalFunc<T1, T2, T3, R>(MethodInfo mi, Delegate originFunc)
         {
             T1 t1 = default;
@@ -98,6 +104,7 @@ namespace BBBirder.UnityInjection
                 return Decorate<R>(invocation);
             };
         }
+        [Preserve]
         Action<T1, T2, T3> UniversalAction<T1, T2, T3>(MethodInfo mi, Delegate originFunc)
         {
             T1 t1 = default;
@@ -121,6 +128,7 @@ namespace BBBirder.UnityInjection
                 Decorate<object>(invocation);
             };
         }
+        [Preserve]
         Func<T1, T2, T3, T4, R> UniversalFunc<T1, T2, T3, T4, R>(MethodInfo mi, Delegate originFunc)
         {
             T1 t1 = default;
@@ -142,6 +150,7 @@ namespace BBBirder.UnityInjection
                 return Decorate<R>(invocation);
             };
         }
+        [Preserve]
         Action<T1, T2, T3, T4> UniversalAction<T1, T2, T3, T4>(MethodInfo mi, Delegate originFunc)
         {
             T1 t1 = default;
@@ -167,6 +176,7 @@ namespace BBBirder.UnityInjection
                 Decorate<object>(invocation);
             };
         }
+        [Preserve]
         Func<T1, T2, T3, T4, T5, R> UniversalFunc<T1, T2, T3, T4, T5, R>(MethodInfo mi, Delegate originFunc)
         {
             T1 t1 = default;
@@ -190,6 +200,7 @@ namespace BBBirder.UnityInjection
                 return Decorate<R>(invocation);
             };
         }
+        [Preserve]
         Action<T1, T2, T3, T4, T5> UniversalAction<T1, T2, T3, T4, T5>(MethodInfo mi, Delegate originFunc)
         {
             T1 t1 = default;
@@ -217,6 +228,7 @@ namespace BBBirder.UnityInjection
                 Decorate<object>(invocation);
             };
         }
+        [Preserve]
         Func<T1, T2, T3, T4, T5, T6, R> UniversalFunc<T1, T2, T3, T4, T5, T6, R>(MethodInfo mi, Delegate originFunc)
         {
             T1 t1 = default;
@@ -242,6 +254,7 @@ namespace BBBirder.UnityInjection
                 return Decorate<R>(invocation);
             };
         }
+        [Preserve]
         Action<T1, T2, T3, T4, T5, T6> UniversalAction<T1, T2, T3, T4, T5, T6>(MethodInfo mi, Delegate originFunc)
         {
             T1 t1 = default;
@@ -271,6 +284,7 @@ namespace BBBirder.UnityInjection
                 Decorate<object>(invocation);
             };
         }
+        [Preserve]
         Func<T1, T2, T3, T4, T5, T6, T7, R> UniversalFunc<T1, T2, T3, T4, T5, T6, T7, R>(MethodInfo mi, Delegate originFunc)
         {
             T1 t1 = default;
@@ -298,6 +312,7 @@ namespace BBBirder.UnityInjection
                 return Decorate<R>(invocation);
             };
         }
+        [Preserve]
         Action<T1, T2, T3, T4, T5, T6, T7> UniversalAction<T1, T2, T3, T4, T5, T6, T7>(MethodInfo mi, Delegate originFunc)
         {
             T1 t1 = default;
@@ -329,6 +344,7 @@ namespace BBBirder.UnityInjection
                 Decorate<object>(invocation);
             };
         }
+        [Preserve]
         Func<T1, T2, T3, T4, T5, T6, T7, T8, R> UniversalFunc<T1, T2, T3, T4, T5, T6, T7, T8, R>(MethodInfo mi, Delegate originFunc)
         {
             T1 t1 = default;
@@ -358,6 +374,7 @@ namespace BBBirder.UnityInjection
                 return Decorate<R>(invocation);
             };
         }
+        [Preserve]
         Action<T1, T2, T3, T4, T5, T6, T7, T8> UniversalAction<T1, T2, T3, T4, T5, T6, T7, T8>(MethodInfo mi, Delegate originFunc)
         {
             T1 t1 = default;
@@ -391,6 +408,7 @@ namespace BBBirder.UnityInjection
                 Decorate<object>(invocation);
             };
         }
+        [Preserve]
         Func<T1, T2, T3, T4, T5, T6, T7, T8, T9, R> UniversalFunc<T1, T2, T3, T4, T5, T6, T7, T8, T9, R>(MethodInfo mi, Delegate originFunc)
         {
             T1 t1 = default;
@@ -422,6 +440,7 @@ namespace BBBirder.UnityInjection
                 return Decorate<R>(invocation);
             };
         }
+        [Preserve]
         Action<T1, T2, T3, T4, T5, T6, T7, T8, T9> UniversalAction<T1, T2, T3, T4, T5, T6, T7, T8, T9>(MethodInfo mi, Delegate originFunc)
         {
             T1 t1 = default;
@@ -457,6 +476,7 @@ namespace BBBirder.UnityInjection
                 Decorate<object>(invocation);
             };
         }
+        [Preserve]
         Func<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, R> UniversalFunc<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, R>(MethodInfo mi, Delegate originFunc)
         {
             T1 t1 = default;
@@ -490,6 +510,7 @@ namespace BBBirder.UnityInjection
                 return Decorate<R>(invocation);
             };
         }
+        [Preserve]
         Action<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10> UniversalAction<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>(MethodInfo mi, Delegate originFunc)
         {
             T1 t1 = default;
@@ -527,6 +548,7 @@ namespace BBBirder.UnityInjection
                 Decorate<object>(invocation);
             };
         }
+        [Preserve]
         Func<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, R> UniversalFunc<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, R>(MethodInfo mi, Delegate originFunc)
         {
             T1 t1 = default;
@@ -562,6 +584,7 @@ namespace BBBirder.UnityInjection
                 return Decorate<R>(invocation);
             };
         }
+        [Preserve]
         Action<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11> UniversalAction<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>(MethodInfo mi, Delegate originFunc)
         {
             T1 t1 = default;
@@ -601,6 +624,7 @@ namespace BBBirder.UnityInjection
                 Decorate<object>(invocation);
             };
         }
+        [Preserve]
         Func<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, R> UniversalFunc<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, R>(MethodInfo mi, Delegate originFunc)
         {
             T1 t1 = default;
@@ -638,6 +662,7 @@ namespace BBBirder.UnityInjection
                 return Decorate<R>(invocation);
             };
         }
+        [Preserve]
         Action<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12> UniversalAction<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12>(MethodInfo mi, Delegate originFunc)
         {
             T1 t1 = default;
