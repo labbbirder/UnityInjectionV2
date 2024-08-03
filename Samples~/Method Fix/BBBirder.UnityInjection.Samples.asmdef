@@ -1,14 +1,15 @@
 {
-    "name": "com.bbbirder.injection.sample",
+    "name": "BBBirder.UnityInjection.Samples",
     "rootNamespace": "",
     "references": [
         "GUID:b66755024ec682a4aa0f53d87f0616ea",
-        "GUID:521f16345e07cc2439d976f3bbd67b45"
+        "GUID:521f16345e07cc2439d976f3bbd67b45",
+        "GUID:f51ebe6a0ceec4240a699833d6309b23"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
-    "allowUnsafeCode": false,
-    "overrideReferences": false,
+    "allowUnsafeCode": true,
+    "overrideReferences": true,
     "precompiledReferences": [],
     "autoReferenced": true,
     "defineConstraints": [],
