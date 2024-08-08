@@ -47,15 +47,17 @@ namespace BBBirder.UnityInjection.Editor
             if (missingInjectionInfos.Length > 0)
             {
                 SafelyWeaveInjectionInfos(missingInjectionInfos);
-                EditorApplication.delayCall += () =>
-                {
+                EditorApplication.delayCall +=
 #if UNITY_2019_3_OR_NEWER
-                    EditorUtility.RequestScriptReload();
+                    EditorUtility.RequestScriptReload;
 #else
-                                UnityEditorInternal.InternalEditorUtility.RequestScriptReload();
+                    UnityEditorInternal.InternalEditorUtility.RequestScriptReload;
 #endif
-                };
                 EditorApplication.QueuePlayerLoopUpdate();
+            }
+            else
+            {
+                InjectionDriver.Instance.AutoInstallOnInitialize();
             }
 
             // EphemeronSettings.instance.weavingRecords = allInjectionInfos

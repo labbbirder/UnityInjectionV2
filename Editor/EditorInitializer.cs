@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
@@ -13,11 +14,11 @@ namespace BBBirder.UnityInjection.Editor
             Logger.loggerLevel = UnityInjectionSettings.instance.loggerLevel;
             SetupImplements();
             InjectionDriver.Instance.OnDomainReload();
-            try
-            {
-                InjectionDriver.Instance.AutoInstallOnInitialize();
-            }
-            catch { }
+            // try
+            // {
+            //     InjectionDriver.Instance.AutoInstallOnInitialize();
+            // }
+            // catch { }
         }
 
         [RuntimeInitializeOnLoadMethod]
