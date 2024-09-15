@@ -2,11 +2,11 @@
   "name": "com.bbbirder.unity-injection",
   "displayName": "Unity Injection V2",
   "description": "Unity注入模块，可以运行时改变被注入函数实现。",
-  "version": "2.0.17",
+  "version": "2.0.18",
   "hideInEditor": false,
   "author": "bbbirder <502100554@qq.com>",
   "dependencies": {
-    "com.bbbirder.directattribute": "2.0.11",
+    "com.bbbirder.directattribute": "2.0.12",
     "com.unity.nuget.mono-cecil": "1.10.2"
   },
   "samples": [

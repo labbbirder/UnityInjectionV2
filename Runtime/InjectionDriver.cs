@@ -23,7 +23,7 @@ namespace BBBirder.UnityInjection
 {
     public partial class InjectionDriver
     {
-
+        bool inited;
 #if UNITY_EDITOR
         internal IEditorInjectionImplement m_EditorImplement;
         internal IEditorInjectionImplement EditorImplement
@@ -63,6 +63,8 @@ namespace BBBirder.UnityInjection
         }
         public void AutoInstallOnInitialize()
         {
+            if (inited) return;
+            inited = true;
             var autoInjectAssemblies = AppDomain.CurrentDomain.GetAssemblies()
                 .Where(asm => asm.GetCustomAttribute<SuppressAutoInjectionAttribute>() == null)
                 .ToArray()

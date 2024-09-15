@@ -71,12 +71,12 @@ namespace BBBirder.UnityInjection
                 proxyDelegate = proxyMethod.CreateDelegate(staticField.FieldType);
                 if (proxyDelegate is null)
                 {
-                    throw new($"create original delegate for {methodName} failed");
+                    throw new($"create original delegate for {targetMethod.DeclaringType.Name}::{methodName} failed");
                 }
             }
             catch (Exception e)
             {
-                var msg = $"error on create and set delegate for original method {methodName}\n{e.Message}\n{e.StackTrace}";
+                var msg = $"error on create and set delegate for original method {targetMethod.DeclaringType.Name}::{methodName}\n{e.Message}\n{e.StackTrace}";
                 Logger.Error(msg);
                 throw;
             }
@@ -92,7 +92,7 @@ namespace BBBirder.UnityInjection
             }
             catch (Exception e)
             {
-                var msg = $"error on create and set delegate for injection method {methodName}\n{e.Message}\n{e.StackTrace}";
+                var msg = $"error on create and set delegate for injection method {targetMethod.DeclaringType.Name}::{methodName}\n{e.Message}\n{e.StackTrace}";
                 Logger.Error(msg);
                 throw;
             }
