@@ -124,7 +124,7 @@ namespace BBBirder.UnityInjection.Editor
             // targetAssembly.RegenerateUnitySignature(additionalTypes);
             if (isDirty)
             {
-                Logger.Info("writed");
+                Logger.Info($"writed (pdb:{shouldAccessSymbols})");
                 targetAssembly.Write(outputPath, new WriterParameters()
                 {
                     WriteSymbols = shouldAccessSymbols,
@@ -487,42 +487,68 @@ namespace BBBirder.UnityInjection.Editor
         /// </summary>
         internal static MethodDefinition Clone(this MethodDefinition source)
         {
-            var result = new MethodDefinition(source.Name, source.Attributes, source.ReturnType)
+            var result = new MethodDefinition(source.Name, source.Attributes, source.ReturnType);
+
+            foreach (var p in source.Parameters)
             {
-                ImplAttributes = source.ImplAttributes,
-                SemanticsAttributes = source.SemanticsAttributes,
-                HasThis = source.HasThis,
-                ExplicitThis = source.ExplicitThis,
-                CallingConvention = source.CallingConvention
-            };
-            foreach (var p in source.Parameters) result.Parameters.Add(p);
+                var param = new ParameterDefinition(p.Name, p.Attributes, p.ParameterType);
+                if (p.HasConstant)
+                {
+                    param.Constant = p.Constant;
+                }
+                result.Parameters.Add(param);
+            }
+
             // foreach (var p in source.CustomAttributes) result.CustomAttributes.Add(p);
-            foreach (var p in source.GenericParameters) result.GenericParameters.Add(p);
+            foreach (var p in source.GenericParameters)
+            {
+                result.GenericParameters.Add(new GenericParameter(p.Name, p.Owner));
+            }
+
             if (source.HasBody)
             {
                 result.Body = CloneMethodBody(source.Body, result);
             }
+
+            result.ImplAttributes = source.ImplAttributes;
+            result.SemanticsAttributes = source.SemanticsAttributes;
+
             return result;
             static MethodBody CloneMethodBody(MethodBody source, MethodDefinition target)
             {
-                var result = new MethodBody(target) { InitLocals = source.InitLocals, MaxStackSize = source.MaxStackSize };
-                var worker = result.GetILProcessor();
+                var targetBody = target.Body; // get or create
+                var ilProcessor = targetBody.GetILProcessor();
+                ilProcessor.Body.InitLocals = true;
                 if (source.HasVariables)
                 {
                     foreach (var v in source.Variables)
                     {
-                        result.Variables.Add(v);
+                        targetBody.Variables.Add(v);
                     }
                 }
+
                 foreach (var i in source.Instructions)
                 {
-                    // Poor mans clone, but sufficient for our needs
-                    var clone = Instruction.Create(OpCodes.Nop);
-                    clone.OpCode = i.OpCode;
-                    clone.Operand = i.Operand;
-                    worker.Append(clone);
+                    ilProcessor.Append(i);
                 }
-                return result;
+
+                if (source.HasExceptionHandlers)
+                {
+                    targetBody.ExceptionHandlers.Clear();
+
+                    foreach (var handler in source.ExceptionHandlers)
+                    {
+                        targetBody.ExceptionHandlers.Add(new ExceptionHandler(handler.HandlerType)
+                        {
+                            TryStart = targetBody.Instructions[source.Instructions.IndexOf(handler.TryStart)],
+                            TryEnd = targetBody.Instructions[source.Instructions.IndexOf(handler.TryEnd)],
+                            HandlerStart = targetBody.Instructions[source.Instructions.IndexOf(handler.HandlerStart)],
+                            HandlerEnd = targetBody.Instructions[source.Instructions.IndexOf(handler.HandlerEnd)]
+                        });
+                    }
+                }
+
+                return targetBody;
             }
         }
 
@@ -635,9 +661,14 @@ namespace BBBirder.UnityInjection.Editor
                 {
                     method.Parameters.Add(new ParameterDefinition(thisType));
                 }
-                foreach (var arg in templateMethod.Parameters)
+                foreach (var p in templateMethod.Parameters)
                 {
-                    method.Parameters.Add(arg);
+                    var param = new ParameterDefinition(p.Name, p.Attributes, p.ParameterType);
+                    if (p.HasConstant)
+                    {
+                        param.Constant = p.Constant;
+                    }
+                    method.Parameters.Add(param);
                 }
                 delDef.Methods.Add(method);
             }
@@ -657,9 +688,14 @@ namespace BBBirder.UnityInjection.Editor
                 {
                     method.Parameters.Add(new ParameterDefinition(thisType));
                 }
-                foreach (var arg in templateMethod.Parameters)
+                foreach (var p in templateMethod.Parameters)
                 {
-                    method.Parameters.Add(arg);
+                    var param = new ParameterDefinition(p.Name, p.Attributes, p.ParameterType);
+                    if (p.HasConstant)
+                    {
+                        param.Constant = p.Constant;
+                    }
+                    method.Parameters.Add(param);
                 }
                 method.Parameters.Add(new ParameterDefinition(module.FindCorrespondingType(typeof(System.AsyncCallback))));
                 method.Parameters.Add(new ParameterDefinition(typeSystem.Object));
@@ -719,8 +755,13 @@ namespace BBBirder.UnityInjection.Editor
 
             source.Body.Instructions.Clear();
             var ilProcessor = source.Body.GetILProcessor();
+            ilProcessor.Body.InitLocals = true;
+            ilProcessor.Body.Variables.Clear();
+            ilProcessor.Body.ExceptionHandlers.Clear();
+
             var tagOp = Instruction.Create(OpCodes.Nop);
             //check null
+            // ilProcessor.Append(Instruction.Create(OpCodes.Nop));
             ilProcessor.Append(Instruction.Create(OpCodes.Ldsfld, delegateField));
             ilProcessor.Append(Instruction.Create(OpCodes.Brtrue_S, tagOp));
 
