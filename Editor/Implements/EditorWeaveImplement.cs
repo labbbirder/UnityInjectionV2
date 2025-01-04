@@ -93,18 +93,38 @@ namespace BBBirder.UnityInjection.Editor
                 TryBackup(assemblyPath);
                 TryBackup(Path.ChangeExtension(assemblyPath, ".pdb"));
             }
-            CecilHelper.InjectAssembly(assemblyPath, injectionInfos, allowedAssemblies, assemblyPath);
+
+            try
+            {
+                CecilHelper.InjectAssembly(assemblyPath, injectionInfos, allowedAssemblies, assemblyPath);
+            }
+            catch
+            {
+                TryRecover(assemblyPath);
+                TryRecover(Path.ChangeExtension(assemblyPath, ".pdb"));
+            }
+
             static bool TryBackup(string inputPath)
             {
+                var backPath = inputPath + ".backup";
                 if (!File.Exists(inputPath))
                 {
                     return false;
                 }
-                var backPath = inputPath + ".backup";
                 if (!File.Exists(backPath))
                 {
                     File.Copy(inputPath, backPath, true);
                 }
+                return true;
+            }
+            static bool TryRecover(string inputPath)
+            {
+                var backPath = inputPath + ".backup";
+                if (!File.Exists(backPath))
+                {
+                    return false;
+                }
+                File.Copy(backPath, inputPath, true);
                 return true;
             }
         }

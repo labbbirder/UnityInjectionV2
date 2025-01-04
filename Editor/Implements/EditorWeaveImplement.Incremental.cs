@@ -21,6 +21,7 @@ namespace BBBirder.UnityInjection.Editor
             if (!isEditor) return;
 
             var assemblies = assemblyPathes
+                .Where(File.Exists)
                 .Select(File.ReadAllBytes)
                 .Select(Assembly.Load)
                 // .SelectMany(a => InjectionInfo.RetrieveInjectionInfosFrom(a))

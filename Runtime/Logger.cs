@@ -16,6 +16,9 @@ namespace BBBirder.UnityInjection
         static Logger()
         {
             InUnityEnv = AppDomain.CurrentDomain.FriendlyName.Contains("Unity", StringComparison.OrdinalIgnoreCase);
+#if UNITY_5_3_OR_NEWER
+            InUnityEnv = true;
+#endif
         }
 
 #if UNITY_2021_3_OR_NEWER
