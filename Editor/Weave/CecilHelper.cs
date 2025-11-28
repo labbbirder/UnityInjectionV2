@@ -1,6 +1,7 @@
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -30,6 +31,7 @@ namespace BBBirder.UnityInjection.Editor
                         ReadingMode = ReadingMode.Immediate,
                     }).Assembly;
                 }
+
                 return assemblyDefinition;
             }
 
@@ -46,6 +48,7 @@ namespace BBBirder.UnityInjection.Editor
                 }
 
                 value = base.Resolve(name);
+                // Logger.Warning("Resolve assembly: " + name.FullName + " from " + value + "\n" + string.Join("\n", allowedAssemblies));
                 cache[name.FullName] = value;
                 return value;
             }
@@ -62,7 +65,7 @@ namespace BBBirder.UnityInjection.Editor
             }
         }
 
-        public static void InjectAssembly(string assemblyPath, InjectionInfo[] injectionInfos, string[] allowedAssemblies, string outputPath)
+        public static Exception[] InjectAssembly(string assemblyPath, InjectionInfo[] injectionInfos, string[] allowedAssemblies, string outputPath)
         {
             Logger.Info("weave assembly: " + assemblyPath);
             using var assemblyResolver = new UnityEditorAssemblyResolver()
@@ -91,33 +94,32 @@ namespace BBBirder.UnityInjection.Editor
             var isDirty = false;
             TypeDefinition markAttributeTypeDef = null;
 
+            var exceptions = new List<Exception>();
             foreach (var injectionInfo in injectionInfos.Distinct())
             {
-                // var (_, klsSig, mthSig) = injectionInfo;
-                // var methodName = mthSig.Split(".")[^1];
-                var targetType = targetAssembly.MainModule.FindTypeBySignature(injectionInfo.InjectedMethod.DeclaringType.GetSignature());
+                try
+                {
+                    var targetType = targetAssembly.MainModule.FindTypeBySignature(injectionInfo.InjectedMethod.DeclaringType.GetSignature());
 
-                // if (targetType is null)
-                // {
-                //     Logger.Warning($"Cannot find Type `{klsSig}` in target assembly {assemblyPath}");
-                //     continue;
-                // }
-                // var targetMethod = targetAssembly.MainModule..ImportReference(injectionInfo.InjectedMethod).Resolve();
-                var targetMethod = targetType.FindMethodBySignature(injectionInfo.InjectedMethod.GetSignature());
-                if (targetMethod is null)
-                {
-                    Logger.Warning($"Cannot find Method `{targetMethod}`");
-                    continue;
+                    // var targetMethod = targetAssembly.MainModule..ImportReference(injectionInfo.InjectedMethod).Resolve();
+                    var targetMethod = targetType.FindMethodBySignature(injectionInfo.InjectedMethod.GetSignature());
+                    if (targetMethod is null)
+                    {
+                        Logger.Warning($"Cannot find Method `{targetMethod}`");
+                        continue;
+                    }
+
+                    if ((injectionInfo.customWeaveAction ?? DefaultWeaveAction)(targetMethod))
+                    {
+                        isDirty = true;
+                    }
+
+                    markAttributeTypeDef ??= targetAssembly.GetOrCreateMarkAttribute();
+                    targetMethod.AddMarkAttributeIfNotExists(markAttributeTypeDef);
                 }
-                // var targetType = targetMethod.DeclaringType;
-                if ((injectionInfo.customWeaveAction ?? DefaultWeaveAction)(targetMethod))
+                catch (Exception e)
                 {
-                    isDirty = true;
-                }
-                markAttributeTypeDef ??= targetAssembly.GetOrCreateMarkAttribute();
-                if (!IsExistsMethodMarkAttribute(targetMethod, markAttributeTypeDef))
-                {
-                    targetMethod.AddMethodMarkAttribute(markAttributeTypeDef);
+                    exceptions.Add(e);
                 }
             }
 
@@ -132,9 +134,10 @@ namespace BBBirder.UnityInjection.Editor
             }
             else
             {
-                Logger.Info("already uptodate");
+                Logger.Info($"assembly {outputPath} is not dirty, hence let it is.");
             }
 
+            return exceptions.ToArray();
         }
 
         public static bool DefaultWeaveAction(MethodDefinition targetMethod)
@@ -146,26 +149,26 @@ namespace BBBirder.UnityInjection.Editor
             if (IsExistsMethodMarkAttribute(targetMethod, markAttribute)) return false;
 
             //clone origin
-            var originName = WeavingUtils.GetOriginMethodName(targetMethod.MetadataToken.ToInt32());
-            var duplicatedMethod = targetMethod.Clone();
+            var originName = WeavingUtils.GetOriginMethodName(targetMethod.Name, targetMethod.MetadataToken.ToInt32());
+            var duplicatedMethod = targetMethod.Clone(targetType);
             duplicatedMethod.IsPrivate = true;
             duplicatedMethod.Name = originName;
-            targetType.Methods.Add(duplicatedMethod);
 
             //add delegate
-            var delegateType = CecilHelper.CreateDelegateForMethod(targetMethod, true);
+            var delegateType = CreateOrGetCorlibDelegateForMethod(targetModule, targetMethod, out var invokeMethod);
             // Fixes: Il2Cpp will collect it twice in DataModelBuilder::BuildCecilSourcedData!
             // targetType.NestedTypes.Add(delegateType);
-            targetModule.Types.Add(delegateType);
+            // targetModule.Types.Add(delegateType);
 
             //add static field
-            var delegateName = WeavingUtils.GetInjectedFieldName(targetMethod.MetadataToken.ToInt32());
+            var delegateName = WeavingUtils.GetInjectedFieldName(targetMethod.Name, targetMethod.MetadataToken.ToInt32());
             var delegateField = new FieldDefinition(delegateName, Mono.Cecil.FieldAttributes.Static | Mono.Cecil.FieldAttributes.Private, delegateType);
             targetType.Fields.Add(delegateField);
 
             //write method body
-            targetMethod.MakeJumpMethod(duplicatedMethod, delegateField);
-            targetMethod.AddMethodMarkAttribute(markAttribute);
+            targetMethod.MakeJumpMethod(duplicatedMethod, delegateField, invokeMethod);
+            targetMethod.AddMarkAttributeIfNotExists(markAttribute);
+            targetMethod.AddCustomAttribute(targetModule.FindCorrespondingType(typeof(DebuggerStepThroughAttribute)));
             return true;
         }
 
@@ -217,6 +220,7 @@ namespace BBBirder.UnityInjection.Editor
                 AppendByte(newBytes, 0);
                 AppendNStringUTF8(newBytes, GetUnitySourceGeneratorLikeTypeName(additionalType));
             }
+
             var baseValueType = assembly.MainModule.FindCorrespondingType(typeof(ValueType));
             var ldarrcnt = GetFirstPrev(ldi, i => TryGetLdcI4Value(i, out var arrSize));
             fldTypesData.FieldType.Resolve().ClassSize = newBytes.Count;
@@ -310,8 +314,10 @@ namespace BBBirder.UnityInjection.Editor
                     if (predicate(instr)) return instr;
                     instr = instr.Previous;
                 }
+
                 return null;
             }
+
             static Instruction GetSetFor(MethodBody body, string name)
             {
                 return body.Instructions.First(c =>
@@ -330,10 +336,12 @@ namespace BBBirder.UnityInjection.Editor
                     declType = declType.DeclaringType;
                     patterns.Add(declType.Name);
                 }
+
                 if (!string.IsNullOrEmpty(declType.Namespace))
                 {
                     patterns.Add(declType.Namespace);
                 }
+
                 patterns.Reverse();
                 return string.Join('.', patterns.SkipLast(1)) + "|" + patterns[^1];
             }
@@ -344,6 +352,7 @@ namespace BBBirder.UnityInjection.Editor
                 {
                     return;
                 }
+
                 result.Add(GetUnitySourceGeneratorLikeTypeName(td));
 
                 foreach (var nest in td.NestedTypes)
@@ -373,6 +382,7 @@ namespace BBBirder.UnityInjection.Editor
                 attribute.ConstructorArguments.Add(new CustomAttributeArgument(typeSystem.String, ""));
                 assembly.CustomAttributes.Add(attribute);
             }
+
             var oldDesc = attribute.ConstructorArguments[0].Value as string;
             attribute.ConstructorArguments[0] = new CustomAttributeArgument(typeSystem.String, oldDesc + WeavingUtils.INJECTED_DESCRIPTION_SUFFIX);
         }
@@ -385,6 +395,7 @@ namespace BBBirder.UnityInjection.Editor
             {
                 return markAttribute;
             }
+
             markAttribute = assembly.MainModule.Types.FirstOrDefault(t => t.Name == "InjectedMethodAttribute");
             if (markAttribute == null)
             {
@@ -405,6 +416,7 @@ namespace BBBirder.UnityInjection.Editor
 
                 assembly.MainModule.Types.Add(markAttribute);
             }
+
             s_cacheAttributes[assembly] = markAttribute;
             return markAttribute;
         }
@@ -414,19 +426,30 @@ namespace BBBirder.UnityInjection.Editor
         /// </summary>
         /// <param name="method"></param>
         /// <returns>True if already exists</returns>
-        internal static bool AddMethodMarkAttribute(this MethodDefinition method, TypeReference attributeType)
+        internal static void AddCustomAttribute(this MethodDefinition method, TypeReference attributeType, params CustomAttributeArgument[] arguments)
         {
             attributeType = method.Module.ImportReference(attributeType);
             var ctorMethod = attributeType.Resolve().Methods.Single(m => true
                 && m.Name == ".ctor"
-                && m.Parameters.Count == 1
+                && m.Parameters.Count == arguments.Length
                 // && m.Parameters[0].ParameterType == typeSystem.String
                 );
             var attribute = new CustomAttribute(method.Module.ImportReference(ctorMethod));
-            var lowerToken = method.MetadataToken.ToInt32() & 0xFFFFFF;
-            attribute.ConstructorArguments.Add(new CustomAttributeArgument(method.Module.TypeSystem.Int32, lowerToken));
+            foreach (var arg in arguments)
+            {
+                attribute.ConstructorArguments.Add(arg);
+            }
+
             method.CustomAttributes.Add(attribute);
-            return false;
+        }
+
+        internal static void AddMarkAttributeIfNotExists(this MethodDefinition method, TypeReference markAttributeType)
+        {
+            if (!IsExistsMethodMarkAttribute(method, markAttributeType))
+            {
+                var lowerToken = method.MetadataToken.ToInt32() & 0xFFFFFF;
+                method.AddCustomAttribute(markAttributeType, new CustomAttributeArgument(method.Module.TypeSystem.Int32, lowerToken));
+            }
         }
 
         internal static bool IsExistsMethodMarkAttribute(this MethodDefinition method, TypeReference attributeType)
@@ -444,6 +467,7 @@ namespace BBBirder.UnityInjection.Editor
             {
                 return false;
             }
+
             var oldDesc = attribute.ConstructorArguments[0].Value as string;
             return oldDesc.Contains(WeavingUtils.INJECTED_DESCRIPTION_SUFFIX);
         }
@@ -453,7 +477,6 @@ namespace BBBirder.UnityInjection.Editor
             var corAttributeType = assembly.MainModule.FindCorrespondingType(attributeType);
             return assembly.CustomAttributes.FirstOrDefault(a => a.AttributeType == corAttributeType);
         }
-
 
         internal static TypeDefinition CreateAdditionalTypeAttributeType(this AssemblyDefinition assembly)
         {
@@ -482,10 +505,11 @@ namespace BBBirder.UnityInjection.Editor
             assembly.CustomAttributes.Add(attribute);
         }
 
+        static Dictionary<int, Instruction> lutOffset2Instr = new();
         /// <summary>
-        /// Create a clone of the given method definition
+        /// Create a clone of the given method definition into targetType
         /// </summary>
-        internal static MethodDefinition Clone(this MethodDefinition source)
+        internal static MethodDefinition Clone(this MethodDefinition source, TypeDefinition targetType)
         {
             var result = new MethodDefinition(source.Name, source.Attributes, source.ReturnType);
 
@@ -496,6 +520,7 @@ namespace BBBirder.UnityInjection.Editor
                 {
                     param.Constant = p.Constant;
                 }
+
                 result.Parameters.Add(param);
             }
 
@@ -505,55 +530,87 @@ namespace BBBirder.UnityInjection.Editor
                 result.GenericParameters.Add(new GenericParameter(p.Name, p.Owner));
             }
 
+            lutOffset2Instr.Clear();
             if (source.HasBody)
             {
-                result.Body = CloneMethodBody(source.Body, result);
-            }
-
-            result.ImplAttributes = source.ImplAttributes;
-            result.SemanticsAttributes = source.SemanticsAttributes;
-
-            return result;
-            static MethodBody CloneMethodBody(MethodBody source, MethodDefinition target)
-            {
-                var targetBody = target.Body; // get or create
+                var sourceBody = source.Body;
+                var targetBody = result.Body; // get or create
                 var ilProcessor = targetBody.GetILProcessor();
                 ilProcessor.Body.InitLocals = true;
-                if (source.HasVariables)
+                if (sourceBody.HasVariables)
                 {
-                    foreach (var v in source.Variables)
+                    foreach (var v in sourceBody.Variables)
                     {
                         targetBody.Variables.Add(v);
                     }
                 }
 
-                foreach (var i in source.Instructions)
+                foreach (var i in sourceBody.Instructions)
                 {
+                    lutOffset2Instr[i.Offset] = i;
                     ilProcessor.Append(i);
                 }
 
-                if (source.HasExceptionHandlers)
+                if (sourceBody.HasExceptionHandlers)
                 {
-                    targetBody.ExceptionHandlers.Clear();
-
-                    foreach (var handler in source.ExceptionHandlers)
+                    foreach (ExceptionHandler eh in sourceBody.ExceptionHandlers)
                     {
-                        targetBody.ExceptionHandlers.Add(new ExceptionHandler(handler.HandlerType)
+                        var neh = new ExceptionHandler(eh.HandlerType)
                         {
-                            TryStart = targetBody.Instructions[source.Instructions.IndexOf(handler.TryStart)],
-                            TryEnd = targetBody.Instructions[source.Instructions.IndexOf(handler.TryEnd)],
-                            HandlerStart = targetBody.Instructions[source.Instructions.IndexOf(handler.HandlerStart)],
-                            HandlerEnd = targetBody.Instructions[source.Instructions.IndexOf(handler.HandlerEnd)]
-                        });
+                            CatchType = eh.CatchType != null
+                                ? targetType.Module.ImportReference(eh.CatchType)
+                                : null
+                        };
+                        if (eh.TryStart != null)
+                        {
+                            neh.TryStart = targetBody.Instructions[sourceBody.Instructions.IndexOf(eh.TryStart)];
+                        }
+
+                        if (eh.TryEnd != null)
+                        {
+                            neh.TryEnd = targetBody.Instructions[sourceBody.Instructions.IndexOf(eh.TryEnd)];
+                        }
+
+                        if (eh.HandlerStart != null)
+                        {
+                            neh.HandlerStart = targetBody.Instructions[sourceBody.Instructions.IndexOf(eh.HandlerStart)];
+                        }
+
+                        if (eh.HandlerEnd != null)
+                        {
+                            neh.HandlerEnd = targetBody.Instructions[sourceBody.Instructions.IndexOf(eh.HandlerEnd)];
+                        }
+
+                        targetBody.ExceptionHandlers.Add(neh);
                     }
                 }
 
-                return targetBody;
-            }
+                foreach (var sp in source.DebugInformation.SequencePoints)
+                {
+                    if (lutOffset2Instr.TryGetValue(sp.Offset, out var instr))
+                    {
+                        result.DebugInformation.SequencePoints.Add(new SequencePoint(instr, new Document(sp.Document.Url))
+                        {
+                            StartLine = sp.StartLine,
+                            EndLine = sp.EndLine,
+                            StartColumn = sp.StartColumn,
+                            EndColumn = sp.EndColumn,
+                        });
+                    }
+                }
+            } // end of HasBody
+
+            result.ImplAttributes = source.ImplAttributes;
+            result.SemanticsAttributes = source.SemanticsAttributes;
+
+            targetType.Methods.Add(result);
+            return result;
         }
 
         internal static TypeReference FindCorrespondingType(this ModuleDefinition module, System.Type type)
         {
+            // What if shipped BCL differs between weaver and weaved assembly?
+            // We can find a corresponding memberInfo via metadata, Cecil has already done this for us!
             return module.ImportReference(type);
         }
         // internal static TypeReference FindCorrespondingType(this ModuleDefinition module, System.Type type)
@@ -589,13 +646,96 @@ namespace BBBirder.UnityInjection.Editor
         //     return module.ImportReference(result);
         // }
 
+        internal static TypeReference CreateOrGetCorlibDelegateForMethod(this ModuleDefinition module, MethodDefinition method, out MethodReference invokeMethod)
+        {
+            do
+            {
+                bool hasByRefParamter = false;
+                foreach (var parameter in method.Parameters)
+                {
+                    if (parameter.ParameterType.IsByReference || parameter.IsOut)
+                    {
+                        hasByRefParamter = true;
+                        break;
+                    }
+                }
+
+                var hasThis = method.HasThis;
+                if (hasThis && method.DeclaringType.IsValueType)
+                {
+                    hasByRefParamter = true;
+                }
+
+                if (hasByRefParamter)
+                    break;
+
+                var parameterCount = method.Parameters.Count;
+                var hasReturnType = method.ReturnType != module.TypeSystem.Void;
+                if (hasThis) parameterCount++;
+                // if (hasReturnType) parameterCount++;
+
+                var rtBclMemberInfo = hasReturnType
+                    ? Type.GetType("System.Func`" + -~parameterCount)
+                    : Type.GetType("System.Action`" + parameterCount)
+                    ;
+                if (rtBclMemberInfo == null)
+                    break;
+
+                var bclDelegateGeneric = FindCorrespondingType(module, rtBclMemberInfo);
+                if (bclDelegateGeneric == null)
+                    break;
+
+                var bclDelegateInstance = new GenericInstanceType(bclDelegateGeneric);
+
+                if (hasThis)
+                {
+                    bclDelegateInstance.GenericArguments.Add(method.DeclaringType);
+                }
+
+                foreach (var p in method.Parameters)
+                {
+                    bclDelegateInstance.GenericArguments.Add(p.ParameterType);
+                }
+
+                if (hasReturnType)
+                {
+                    bclDelegateInstance.GenericArguments.Add(method.ReturnType);
+                }
+
+                var originInvokeMethod = bclDelegateInstance.Resolve().Methods.Single(m => m.Name == "Invoke");
+                invokeMethod = new MethodReference("Invoke", originInvokeMethod.ReturnType)
+                {
+                    DeclaringType = bclDelegateInstance,
+                    HasThis = originInvokeMethod.HasThis,
+                    ExplicitThis = originInvokeMethod.ExplicitThis,
+                    CallingConvention = originInvokeMethod.CallingConvention,
+                };
+
+                for (int i = 0; i < originInvokeMethod.Parameters.Count; i++)
+                {
+                    var parameter = originInvokeMethod.Parameters[i];
+                    invokeMethod.Parameters.Add(new ParameterDefinition("arg" + -~i, parameter.Attributes, parameter.ParameterType));
+                }
+
+                invokeMethod = module.ImportReference(invokeMethod);
+
+                return bclDelegateInstance;
+            } while (false);
+
+            var customDelegateType = CreateDelegateForMethod(method, out invokeMethod, true);
+            module.Types.Add(customDelegateType);
+            // targetType.NestedTypes.Add(customDelegateType);
+            return customDelegateType;
+        }
+
+
         /// <summary>
         /// Create a delegate for the given method.
         /// </summary>
         /// <param name="method"></param>
         /// <param name="moreCompatible">if True, the return type will be set to `object` on reference types</param>
         /// <returns></returns>
-        internal static TypeDefinition CreateDelegateForMethod(MethodDefinition templateMethod, bool moreCompatible = true)
+        internal static TypeDefinition CreateDelegateForMethod(MethodDefinition templateMethod, out MethodReference invokeMethod, bool moreCompatible = true)
         {
             var module = templateMethod.Module;
             var typeSystem = templateMethod.Module.TypeSystem;
@@ -611,6 +751,7 @@ namespace BBBirder.UnityInjection.Editor
             {
                 thisType = new ByReferenceType(thisType);
             }
+
             if (templateMethod.IsStatic)
             {
                 thisType = null;
@@ -623,9 +764,11 @@ namespace BBBirder.UnityInjection.Editor
                 ;
             var methodAttributes = default(MethodAttributes);
 
-            var typeName = WeavingUtils.GetDelegateName(templateMethod.MetadataToken.ToInt32());
+            var typeName = WeavingUtils.GetDelegateName(templateMethod.Name, templateMethod.MetadataToken.ToInt32());
             var delDef = new TypeDefinition("", typeName, typeAttributes, module.FindCorrespondingType(typeof(System.MulticastDelegate)));
-            {   // add .ctor
+
+            // add .ctor
+            {
                 methodAttributes = 0
                     | MethodAttributes.FamANDAssem
                     | MethodAttributes.Family
@@ -645,7 +788,9 @@ namespace BBBirder.UnityInjection.Editor
                 // ctor.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
                 delDef.Methods.Add(ctor);
             }
-            {   // add Invoke
+
+            // add Invoke
+            {
                 methodAttributes = 0
                     | MethodAttributes.Public
                     | MethodAttributes.HideBySig
@@ -657,10 +802,12 @@ namespace BBBirder.UnityInjection.Editor
                     HasThis = true,
                     IsRuntime = true,
                 };
+
                 if (thisType != null)
                 {
                     method.Parameters.Add(new ParameterDefinition(thisType));
                 }
+
                 foreach (var p in templateMethod.Parameters)
                 {
                     var param = new ParameterDefinition(p.Name, p.Attributes, p.ParameterType);
@@ -668,11 +815,16 @@ namespace BBBirder.UnityInjection.Editor
                     {
                         param.Constant = p.Constant;
                     }
+
                     method.Parameters.Add(param);
                 }
+
                 delDef.Methods.Add(method);
+                invokeMethod = method;
             }
-            {   // add BeginInvoke
+
+            // add BeginInvoke
+            {
                 methodAttributes = 0
                     | MethodAttributes.Public
                     | MethodAttributes.HideBySig
@@ -688,6 +840,7 @@ namespace BBBirder.UnityInjection.Editor
                 {
                     method.Parameters.Add(new ParameterDefinition(thisType));
                 }
+
                 foreach (var p in templateMethod.Parameters)
                 {
                     var param = new ParameterDefinition(p.Name, p.Attributes, p.ParameterType);
@@ -695,13 +848,17 @@ namespace BBBirder.UnityInjection.Editor
                     {
                         param.Constant = p.Constant;
                     }
+
                     method.Parameters.Add(param);
                 }
+
                 method.Parameters.Add(new ParameterDefinition(module.FindCorrespondingType(typeof(System.AsyncCallback))));
                 method.Parameters.Add(new ParameterDefinition(typeSystem.Object));
                 delDef.Methods.Add(method);
             }
-            {   // add EndInvoke
+
+            // add EndInvoke
+            {
                 methodAttributes = 0
                     | MethodAttributes.Public
                     | MethodAttributes.HideBySig
@@ -726,6 +883,7 @@ namespace BBBirder.UnityInjection.Editor
                 method.Parameters.Add(argAsync);
                 delDef.Methods.Add(method);
             }
+
             return delDef;
         }
         #endregion
@@ -733,28 +891,28 @@ namespace BBBirder.UnityInjection.Editor
         #region emission
 
         /// <summary>
-        /// Jump to <paramref name="destination"/> when <paramref name="delegateField"/> is unset.
+        /// Jump to <paramref name="destinationMethod"/> when <paramref name="delegateField"/> is unset.
         /// </summary>
-        /// <param name="source"></param>
-        /// <param name="destination"></param>
+        /// <param name="sourceMethod"></param>
+        /// <param name="destinationMethod"></param>
         /// <param name="delegateField"></param>
         internal static void MakeJumpMethod(
-            this MethodDefinition source, MethodDefinition destination,
-            FieldDefinition delegateField
+            this MethodDefinition sourceMethod, MethodDefinition destinationMethod,
+            FieldDefinition delegateField, MethodReference invokeMethod
         )
         {
             var argidx = 0;
-            var Parameters = source.Parameters;
-            var ReturnType = source.ReturnType;
+            var parameters = sourceMethod.Parameters;
+            var returnType = sourceMethod.ReturnType;
 
             //redirect method
-            if (!source.HasBody)
+            if (!sourceMethod.HasBody)
             {
-                throw new ArgumentException($"method {source.Name} dont have a body");
+                throw new ArgumentException($"method {sourceMethod.Name} dont have a body");
             }
 
-            source.Body.Instructions.Clear();
-            var ilProcessor = source.Body.GetILProcessor();
+            sourceMethod.Body.Instructions.Clear();
+            var ilProcessor = sourceMethod.Body.GetILProcessor();
             ilProcessor.Body.InitLocals = true;
             ilProcessor.Body.Variables.Clear();
             ilProcessor.Body.ExceptionHandlers.Clear();
@@ -767,32 +925,39 @@ namespace BBBirder.UnityInjection.Editor
 
             //invoke origin
             argidx = 0;
-            if (!source.IsStatic)
+            if (!sourceMethod.IsStatic)
                 ilProcessor.Append(ilProcessor.CreateLdarg(argidx++));
-            for (var i = 0; i < Parameters.Count; i++)
+            for (var i = 0; i < parameters.Count; i++)
             {
                 ilProcessor.Append(ilProcessor.CreateLdarg(argidx++));
             }
 
-            if (destination.IsVirtual)
-                ilProcessor.Append(Instruction.Create(OpCodes.Callvirt, destination));
+            // ilProcessor.Append(Instruction.Create(OpCodes.Tail));
+            if (destinationMethod.IsVirtual)
+                ilProcessor.Append(Instruction.Create(OpCodes.Callvirt, destinationMethod));
             else
-                ilProcessor.Append(Instruction.Create(OpCodes.Call, destination));
+                ilProcessor.Append(Instruction.Create(OpCodes.Call, destinationMethod));
             ilProcessor.Append(Instruction.Create(OpCodes.Ret));
 
             //invoke
-            var delegateInvoker = delegateField.FieldType.Resolve().Methods.First(m => m.Name == "Invoke");
+            // var delegateInvoker = source.Module.ImportReference(delegateField.FieldType.Resolve().Methods.First(m => m.Name == "Invoke"));
+            var delegateInvoker = invokeMethod;
             ilProcessor.Append(tagOp);
             ilProcessor.Append(Instruction.Create(OpCodes.Ldsfld, delegateField));
             argidx = 0;
-            if (!source.IsStatic)
+            if (!sourceMethod.IsStatic)
                 ilProcessor.Append(ilProcessor.CreateLdarg(argidx++));
-            for (var i = 0; i < Parameters.Count; i++)
+            for (var i = 0; i < parameters.Count; i++)
             {
                 ilProcessor.Append(ilProcessor.CreateLdarg(argidx++));
             }
+
+            // ilProcessor.Append(Instruction.Create(OpCodes.Tail));
             ilProcessor.Append(Instruction.Create(OpCodes.Callvirt, delegateInvoker));
             ilProcessor.Append(Instruction.Create(OpCodes.Ret));
+
+            sourceMethod.Body.ExceptionHandlers.Clear();
+            sourceMethod.DebugInformation.SequencePoints.Clear();
         }
 
         static OpCode[] s_ldargs = new[] { OpCodes.Ldarg_0, OpCodes.Ldarg_1, OpCodes.Ldarg_2, OpCodes.Ldarg_3 };
@@ -819,11 +984,16 @@ namespace BBBirder.UnityInjection.Editor
         };
         static Instruction CreateLdcI4(this ILProcessor ilProcessor, int i)
         {
-            if (i == -1) return ilProcessor.Create(OpCodes.Ldc_I4_M1);
+            if (i == -1)
+            {
+                return ilProcessor.Create(OpCodes.Ldc_I4_M1);
+            }
+
             if (i >= 0 && i < s_ldc_ints.Length)
             {
                 return ilProcessor.Create(s_ldc_ints[i]);
             }
+
             if (-128 <= i && i < 127)
             {
                 return ilProcessor.Create(OpCodes.Ldc_I4_S, (sbyte)i);
@@ -841,20 +1011,24 @@ namespace BBBirder.UnityInjection.Editor
                 int32 = -1;
                 return true;
             }
+
             var idx = Array.IndexOf(s_ldc_ints, instr.OpCode);
             if (idx > 0)
             {
                 int32 = idx;
                 return true;
             }
+
             if (instr.OpCode == OpCodes.Ldc_I4_S || instr.OpCode == OpCodes.Ldc_I4)
             {
                 int32 = Convert.ToInt32(instr.Operand);
                 return true;
             }
+
             int32 = -1;
             return false;
         }
+
         #endregion
 
         #region signature
@@ -931,9 +1105,10 @@ namespace BBBirder.UnityInjection.Editor
 
                 builder.Append(']');
             }
+
             return builder.ToString();
 
-            IEnumerable<TypeReference> GetDeclaringTypes(TypeReference type)
+            static IEnumerable<TypeReference> GetDeclaringTypes(TypeReference type)
             {
                 while (type != null)
                 {
@@ -973,6 +1148,7 @@ namespace BBBirder.UnityInjection.Editor
                 {
                     builder.Append(",");
                 }
+
                 var klassGenericArguments = declaringType.GenericParameters;
                 var methodGenericArguments = method.GenericParameters;
 

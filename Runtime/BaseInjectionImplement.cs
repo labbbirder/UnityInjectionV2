@@ -13,6 +13,7 @@ namespace BBBirder.UnityInjection
         void InstallAssembly(Assembly assembly, InjectionInfo[] injectionInfos);
         void UninstallAssembly(Assembly assembly);
         MethodInfo GetProxyMethod(MethodBase targetMethod);
+        bool TryGetOriginToken(MethodBase targetMethod, out int token);
 
         bool IsInjected(Assembly assembly);
         bool IsInjected(MethodBase method);
@@ -87,6 +88,7 @@ namespace BBBirder.UnityInjection
         public abstract void InstallAssembly(Assembly assembly, InjectionInfo[] injectionInfos);
         public abstract void UninstallAssembly(Assembly assembly);
         public abstract MethodInfo GetProxyMethod(MethodBase targetMethod);
+        public abstract bool TryGetOriginToken(MethodBase targetMethod, out int token);
         public abstract bool IsInjected(Assembly assembly);
         public abstract bool IsInjected(MethodBase method);
 #if UNITY_EDITOR

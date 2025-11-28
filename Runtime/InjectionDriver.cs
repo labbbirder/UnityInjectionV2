@@ -6,10 +6,9 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using UnityEngine;
-using System.Reflection.Emit;
 using System.IO;
 using com.bbbirder;
-
+using System.Runtime.CompilerServices;
 
 
 
@@ -61,7 +60,8 @@ namespace BBBirder.UnityInjection
             RuntimeImplement = new WeavingFixImplement();
 #endif
         }
-        public void AutoInstallOnInitialize()
+
+        public void AutoInstallOnInitialize(bool allowFailures)
         {
             if (inited) return;
             inited = true;
@@ -72,18 +72,36 @@ namespace BBBirder.UnityInjection
             var injectionInfoGroups = GetInjectionInfos(autoInjectAssemblies).GroupBy(info => info.InjectedMethod.DeclaringType.Assembly);
 
             Logger.Info($"auto install {injectionInfoGroups.Count()} involved assemblies");
+
+            AssemblyInstallationException exception = null;
             foreach (var grp in injectionInfoGroups)
             {
                 var assemly = grp.Key;
-                InstallAssembly_Impl(assemly, grp.ToArray());
+                try
+                {
+                    InstallAssembly_Impl(assemly, grp.ToArray());
+                }
+                catch (Exception e)
+                {
+                    exception ??= new(assemly, e);
+                }
             }
+
+#if UNITY_EDITOR
+            if (exception is not null && !allowFailures)
+            {
+#if UNITY_EDITOR
+                CleanAndReopenProject(exception);
+#endif
+            }
+#endif
         }
 
 #if !UNITY_EDITOR
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterAssembliesLoaded)]
         static void RuntimeInit()
         {
-            Instance.AutoInstallOnInitialize();
+            Instance.AutoInstallOnInitialize(true);
         }
 #endif
 
@@ -98,14 +116,71 @@ namespace BBBirder.UnityInjection
             UninstallAssembly_Impl(assembly);
         }
 
+#if UNITY_EDITOR
+        internal static void CleanAndReopenProject(AssemblyInstallationException reason)
+        {
+            EditorApplication.update -= InnerFunc;
+            EditorApplication.update += InnerFunc;
+            EditorApplication.QueuePlayerLoopUpdate();
+
+            void InnerFunc()
+            {
+                EditorApplication.update -= InnerFunc;
+
+                var shouldRecompile = EditorUtility.DisplayDialog(
+                    "Unity Injection",
+                    $"installing methods failed on Assembly {reason?.Assembly?.GetName()?.Name}, would you like to recompile it and restart Unity?",
+                    "yes", "no"
+                );
+
+                if (shouldRecompile)
+                {
+                    EditorApplication.quitting += () =>
+                    {
+                        InjectionDriver.RestoreAllPrecompiledAssemblies();
+
+                        foreach (var file in Directory.GetFiles("Library/ScriptAssemblies"))
+                        {
+                            try
+                            {
+                                File.Delete(file);
+                            }
+                            catch { }
+                        }
+                    };
+
+                    EditorApplication.OpenProject(Directory.GetCurrentDirectory());
+
+                    // It doesn't build scripts into ScriptAssemblies but Bee
+                    // UnityEditor.Compilation.CompilationPipeline.RequestScriptCompilation(UnityEditor.Compilation.RequestScriptCompilationOptions.CleanBuildCache);
+                }
+            }
+        }
+
+#endif
+
         public void InstallAllAssemblies()
         {
             var injectionInfoGroups = GetInjectionInfos().GroupBy(info => info.InjectedMethod.DeclaringType.Assembly);
             Logger.Info($"install all {injectionInfoGroups.Count()} involved assemblies");
+
+            AssemblyInstallationException exception = null;
             foreach (var grp in injectionInfoGroups)
             {
                 var assemly = grp.Key;
-                InstallAssembly_Impl(assemly, grp.ToArray());
+                try
+                {
+                    InstallAssembly_Impl(assemly, grp.ToArray());
+                }
+                catch (Exception e)
+                {
+                    exception ??= new(assemly, e);
+                }
+            }
+
+            if (exception is not null)
+            {
+                throw exception;
             }
         }
 
@@ -148,6 +223,33 @@ namespace BBBirder.UnityInjection
             return CurrentImplement.GetProxyMethod(method);
         }
 
+        public bool TryGetOriginToken(MethodInfo targetMethod, out int token)
+        {
+            return CurrentImplement.TryGetOriginToken(targetMethod, out token);
+        }
+
+        public static void RestoreAllPrecompiledAssemblies()
+        {
+            foreach (var info in GetInjectionInfos().GroupBy(i => i.InjectedMethod.Module.Assembly))
+            {
+                var assemblyPath = info.Key.GetAssemblyPath();
+                var inputFullPath = Path.GetFullPath(assemblyPath);
+                var isGeneratedAssembly = inputFullPath.StartsWith(Path.GetFullPath("Library"))
+                    || inputFullPath.StartsWith(Path.GetFullPath("Temp"))
+                    ;
+
+                if (!isGeneratedAssembly)
+                {
+                    var backupPath = assemblyPath + ".backup";
+                    if (File.Exists(backupPath))
+                    {
+                        File.Copy(backupPath, assemblyPath, true);
+                    }
+                }
+            }
+        }
+
+
         /// <summary>
         /// Get all injections in current domain.
         /// </summary>
@@ -158,20 +260,9 @@ namespace BBBirder.UnityInjection
             if (assemblies == null || assemblies.Length == 0)
                 assemblies = AppDomain.CurrentDomain.GetAssemblies();
 
-            // Debug.Log("iter " + assemblies.Length);
-            var injections = assemblies
-                // .Where(a=>a.MayContainsInjection()) 
-                .SelectMany(a => Retriever.GetAllAttributes<InjectionAttribute>(a))
-                .SelectMany(attr => attr.ProvideInjections())
-                ;
-            var injections2 = assemblies
-                .SelectMany(a => Retriever.GetAllSubtypes<IInjectionProvider>(a))
-                .Where(type => !type.IsInterface && !type.IsAbstract)
-                .Select(type => ReflectionHelper.CreateInstance(type) as IInjectionProvider)
-                .SelectMany(ii => ii.ProvideInjections())
-                ;
-            return injections.Concat(injections2).ToArray();
+            return InjectionInfo.RetrieveInjectionInfosFrom(assemblies);
         }
+
         Dictionary<Assembly, InjectionInfo[]> registry = new();
         static InjectionDriver m_Instance;
         public static InjectionDriver Instance => m_Instance ??= new();
@@ -193,8 +284,6 @@ namespace BBBirder.UnityInjection
             // mono .net standard 2.1 : net_Standrad_2_0  : jit
             // il2cpp .net framework : net_unity_4_8  : aot
             // il2cpp .net standard 2.1 : net_Standrad_2_0  : aot
-            Instance.EditorImplement.OnDomainReload();
-            Instance.RuntimeImplement.OnDomainReload();
 
             bool BuildingForEditor = true;
             bool hasError = false;
@@ -207,6 +296,7 @@ namespace BBBirder.UnityInjection
                 {
                     throw new NotSupportedException("cannot get BeeScriptCompilationState, Unity Version" + Application.unityVersion);
                 }
+
                 BuildingForEditor = (bool)GetMemberValue(settings, "BuildingForEditor", true);
                 compiledAssemblies.Clear();
                 // var OutputDirectory = (string)GetMemberValue(settings, "OutputDirectory", true);
@@ -241,6 +331,9 @@ namespace BBBirder.UnityInjection
                 Logger.Verbose("after assembly reload");
             };
 
+            Instance.EditorImplement.OnDomainReload();
+            Instance.RuntimeImplement.OnDomainReload();
+
             static object GetScriptAssemblySettings()
             {
                 var t = t_EditorCompilationInterface ??= GetType("UnityEditor.CoreModule", "EditorCompilationInterface");
@@ -256,6 +349,7 @@ namespace BBBirder.UnityInjection
 
                 return GetMemberValue(state, "Settings", true);
             }
+
             static Type GetType(string moduleName, string typeName)
             {
                 return System.AppDomain.CurrentDomain.GetAssemblies()
@@ -264,6 +358,7 @@ namespace BBBirder.UnityInjection
                     .Where(t => t.Name.Equals(typeName))
                     .Single();
             }
+
             static object GetMemberValue(object obj, string name, bool IgnoreCase = false)
             {
                 var flags = bindingFlags;
@@ -303,21 +398,52 @@ namespace BBBirder.UnityInjection
 
         public void OnPreprocessBuild(BuildReport report)
         {
-            Logger.Verbose("OnPreprocessBuild" + report.name);
-            // Instance.EditorImplement.OnPreprocessBuild(report);
-            Instance.RuntimeImplement.OnPreprocessBuild(report);
+            try
+            {
+                Logger.Verbose("OnPreprocessBuild" + report.name);
+                Instance.RuntimeImplement.OnPreprocessBuild(report);
+            }
+            catch (Exception e)
+            {
+#if UNITY_2021_3_OR_NEWER
+                throw new BuildFailedException(e);
+#else
+                throw new("", e);
+#endif
+            }
         }
 
         public void OnPostprocessBuild(BuildReport report)
         {
-            Logger.Verbose("OnPostprocessBuild" + report.name);
-            // Instance.EditorImplement.OnPostprocessBuild(report);
-            Instance.RuntimeImplement.OnPostprocessBuild(report);
+            try
+            {
+                Logger.Verbose("OnPostprocessBuild" + report.name);
+                Instance.RuntimeImplement.OnPostprocessBuild(report);
+            }
+            catch (Exception e)
+            {
+#if UNITY_2021_3_OR_NEWER
+                throw new BuildFailedException(e);
+#else
+                throw new("", e);
+#endif
+            }
         }
 
         public void OnPostBuildPlayerScriptDLLs(BuildReport report)
         {
-            Instance.RuntimeImplement.OnPostBuildPlayerDll(report);
+            try
+            {
+                Instance.RuntimeImplement.OnPostBuildPlayerDll(report);
+            }
+            catch (Exception e)
+            {
+#if UNITY_2021_3_OR_NEWER
+                throw new BuildFailedException(e);
+#else
+                throw new("", e);
+#endif
+            }
         }
     }
 #endif

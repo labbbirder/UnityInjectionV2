@@ -8,23 +8,30 @@ using UnityEditor;
 
 namespace BBBirder.UnityInjection.Editor
 {
-    // [Serializable]
-    // struct Arguments
-    // {
-    //     public string[] allowedAssemblies;
-    //     public string[] compiledAssemblies;
-    // }
     internal partial class EditorWeaveImplement : WeavingFixImplement, IEditorInjectionImplement
     {
-        public void OnCompiledAssemblies_Incremental(bool isEditor, string[] assemblyPathes)
+        const string Key_MissingInjectionChecked = "<UnityInjection>MissingInjectionChecked";
+
+        private static bool ss_MissingInjectionChecked
+        {
+            get => SessionState.GetBool(Key_MissingInjectionChecked, false);
+            set
+            {
+                Logger.Info("ss_MissingInjectionChecked " + value);
+                SessionState.SetBool(Key_MissingInjectionChecked, value);
+            }
+        }
+
+        public void OnCompiledAssemblies_Incremental(bool isEditor, string[] assemblyPaths)
         {
             if (!isEditor) return;
 
-            var assemblies = assemblyPathes
+            Logger.Info($"compiled assemblies: {string.Join("\n", assemblyPaths)}");
+
+            var assemblies = assemblyPaths
                 .Where(File.Exists)
                 .Select(File.ReadAllBytes)
                 .Select(Assembly.Load)
-                // .SelectMany(a => InjectionInfo.RetrieveInjectionInfosFrom(a))
                 .ToArray()
                 ;
 
@@ -32,45 +39,66 @@ namespace BBBirder.UnityInjection.Editor
             var inwardInjections = assemblies.SelectMany(a => InjectionInfo.RetrieveInjectionInfosTowards(a));
             var injectionInfos = outwardInjections.Concat(inwardInjections).ToArray();
 
-            SafelyWeaveInjectionInfos(injectionInfos);
+            SafelyWeaveInjectionInfos_Impl(injectionInfos, GetAllowedAssemblies().Concat(assemblyPaths).Distinct().ToArray());
         }
 
         public void OnDomainReload_Incremental()
         {
+            var hasCompilationError = EditorUtility.scriptCompilationFailed;
+            if (hasCompilationError)
+            {
+                Logger.Info("Ingore injections because of compilation error.");
+                return;
+            }
+
+            if (ss_MissingInjectionChecked)
+            {
+                // missing injections were weaved during previous domain reload
+                ss_MissingInjectionChecked = false;
+                InjectionDriver.Instance.AutoInstallOnInitialize(true);
+                return;
+            }
+
+            ss_MissingInjectionChecked = true;
             var allInjectionInfos = InjectionInfo.RetriveAllInjectionInfos().ToHashSet();
             var missingInjectionInfos = allInjectionInfos
                 // .Where(info => !prevInjectionRecords.Contains(WeavingRecord.FromInjectionInfo(info)))
                 .Where(info => !IsInjected(info.InjectedMethod))
                 .ToArray()
                 ;
+
             Logger.Info($"missingInjectionInfos {missingInjectionInfos.Length}");
 
             if (missingInjectionInfos.Length > 0)
             {
-                SafelyWeaveInjectionInfos(missingInjectionInfos);
-                EditorApplication.delayCall +=
-#if UNITY_2019_3_OR_NEWER
-                    EditorUtility.RequestScriptReload;
-#else
-                    UnityEditorInternal.InternalEditorUtility.RequestScriptReload;
-#endif
+                EditorApplication.update -= RequestScriptReload;
+                EditorApplication.update += RequestScriptReload;
                 EditorApplication.QueuePlayerLoopUpdate();
+
+                SafelyWeaveInjectionInfos(missingInjectionInfos);
             }
             else
             {
-                InjectionDriver.Instance.AutoInstallOnInitialize();
+                InjectionDriver.Instance.AutoInstallOnInitialize(false);
+                ss_MissingInjectionChecked = false;
             }
 
-            // EphemeronSettings.instance.weavingRecords = allInjectionInfos
-            //     .Select(WeavingRecord.FromInjectionInfo)
-            //     .ToArray()
-            //     ;
-            // EphemeronSettings.instance.Save();
+            static void RequestScriptReload()
+            {
+                EditorApplication.update -= RequestScriptReload;
+
+                Logger.Info($"request script reload");
+#if UNITY_2019_3_OR_NEWER
+                EditorUtility.RequestScriptReload();
+#else
+                UnityEditorInternal.InternalEditorUtility.RequestScriptReload();
+#endif
+            }
         }
 
         static void SafelyWeaveInjectionInfos(InjectionInfo[] injectionInfos)
         {
-            SafelyWeaveInjectionInfos_Impl(injectionInfos, GetAllowedAssemblies(), null);
+            SafelyWeaveInjectionInfos_Impl(injectionInfos, GetAllowedAssemblies());
         }
 
         // public static void SafelyWeaveCompiledAssemblies((string, Assembly)[] compiledAssemblies, string[] allowedAssemblies)
@@ -90,10 +118,8 @@ namespace BBBirder.UnityInjection.Editor
                 .Where(a => !a.IsDynamic)
                 .Select(a => a.Location)
                 .Where(File.Exists)
-                // .Select(Path.GetDirectoryName)
                 .Distinct()
                 .ToArray();
         }
-
     }
 }

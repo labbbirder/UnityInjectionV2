@@ -1,15 +1,15 @@
 using System.Collections.Generic;
-using com.bbbirder;
+using BBBirder.DirectAttribute;
 
 namespace BBBirder.UnityInjection
 {
-    [RetrieveSubtype]
+    [RetrieveSubtype(preserveSubtypes: true)]
     public interface IInjectionProvider
     {
         /// <summary>
         /// set this property to populate injections
         /// </summary>
         /// <value></value>
-        public IEnumerable<InjectionInfo> ProvideInjections();
+        IEnumerable<InjectionInfo> ProvideInjections();
     }
 }

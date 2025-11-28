@@ -4,8 +4,8 @@ using System.Collections.Generic;
 using System.Reflection;
 using BBBirder.UnityInjection;
 using NUnit.Framework;
-using UnityEngine;
 using UnityEngine.TestTools;
+
 
 public class PatchTargetTests : IInjectionProvider
 {

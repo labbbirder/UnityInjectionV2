@@ -11,7 +11,7 @@ namespace BBBirder.UnityInjection.Editor
         [InitializeOnLoadMethod]
         static void EditorModeSetup()
         {
-            Logger.loggerLevel = UnityInjectionSettings.instance.loggerLevel;
+            Logger.loggerLevel = UnityInjectionSettings.Instance.loggerLevel;
             SetupImplements();
             InjectionDriver.Instance.OnDomainReload();
             // try
@@ -29,10 +29,10 @@ namespace BBBirder.UnityInjection.Editor
 
         static void SetupImplements()
         {
-            var editorImplementType = Type.GetType(UnityInjectionSettings.instance.EditorImplement);
+            var editorImplementType = Type.GetType(UnityInjectionSettings.Instance.EditorImplement);
             InjectionDriver.Instance.EditorImplement = Activator.CreateInstance(editorImplementType) as IEditorInjectionImplement;
 
-            var runtimeImplementType = Type.GetType(UnityInjectionSettings.instance.EditorImplement);
+            var runtimeImplementType = Type.GetType(UnityInjectionSettings.Instance.EditorImplement);
             InjectionDriver.Instance.RuntimeImplement = Activator.CreateInstance(runtimeImplementType) as IRuntimeInjectionImplement;
         }
     }

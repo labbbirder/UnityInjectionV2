@@ -4,6 +4,10 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+#if UNITY_EDITOR
+using UnityEditor;
+using UnityEditorInternal;
+#endif
 using UnityEngine;
 
 namespace BBBirder.UnityInjection
@@ -14,11 +18,9 @@ namespace BBBirder.UnityInjection
 
         public override MethodInfo GetProxyMethod(MethodBase targetMethod)
         {
-            var found = TryGetOriginToken(targetMethod, out var token);
-            // var methodName = targetMethod.Name;
+            var found = TryGetOriginTokenImpl(targetMethod, out var token);
             var targetType = targetMethod.DeclaringType;
-            // var targetMethodSignature = targetMethod.GetSignature();
-            var proxyMethodName = WeavingUtils.GetOriginMethodName(token);
+            var proxyMethodName = WeavingUtils.GetOriginMethodName(targetMethod.Name, token);
             var proxyMethod = targetType.GetMethod(proxyMethodName, bindingFlags);
             return proxyMethod;
         }
@@ -26,6 +28,8 @@ namespace BBBirder.UnityInjection
         public override void InstallAssembly(Assembly assembly, InjectionInfo[] injectionInfos)
         {
             registry[assembly] = injectionInfos;
+
+            Exception exception = null;
             foreach (var info in injectionInfos)
             {
                 try
@@ -35,7 +39,13 @@ namespace BBBirder.UnityInjection
                 catch (Exception e)
                 {
                     Logger.Error(e);
+                    exception ??= e;
                 }
+            }
+
+            if (exception is not null)
+            {
+                throw exception;
             }
         }
 
@@ -76,7 +86,10 @@ namespace BBBirder.UnityInjection
             }
             catch (Exception e)
             {
-                var msg = $"error on create and set delegate for original method {targetMethod.DeclaringType.Name}::{methodName}\n{e.Message}\n{e.StackTrace}";
+                var msg = @$"error on create and set delegate for original method {targetMethod.DeclaringType.Name}::{methodName}
+from {proxyMethod} to {staticField?.FieldType}
+{e.Message}
+{e.StackTrace}";
                 Logger.Error(msg);
                 throw;
             }
@@ -101,7 +114,7 @@ namespace BBBirder.UnityInjection
 
         internal static FieldInfo GetStaticField(MethodBase targetMethod, bool throwNoNotFound = true)
         {
-            var found = TryGetOriginToken(targetMethod, out var token);
+            var found = TryGetOriginTokenImpl(targetMethod, out var token);
 
             if (!found && throwNoNotFound)
             {
@@ -109,7 +122,7 @@ namespace BBBirder.UnityInjection
             }
             var targetType = targetMethod.DeclaringType;
 
-            var sfldName = WeavingUtils.GetInjectedFieldName(token);
+            var sfldName = WeavingUtils.GetInjectedFieldName(targetMethod.Name, token);
             var sfld = targetType.GetField(sfldName, bindingFlags ^ BindingFlags.Instance);
             if (sfld == null && throwNoNotFound)
             {
@@ -127,10 +140,15 @@ namespace BBBirder.UnityInjection
 
         public override bool IsInjected(MethodBase method)
         {
-            return TryGetOriginToken(method, out _);
+            return TryGetOriginTokenImpl(method, out _);
         }
 
-        internal static bool TryGetOriginToken(MethodBase method, out int token)
+        public override bool TryGetOriginToken(MethodBase targetMethod, out int token)
+        {
+            return TryGetOriginTokenImpl(targetMethod, out token);
+        }
+
+        public static bool TryGetOriginTokenImpl(MethodBase method, out int token)
         {
             var attr = method.GetCustomAttributes(false).FirstOrDefault(a => a.GetType().Name == "InjectedMethodAttribute");
 

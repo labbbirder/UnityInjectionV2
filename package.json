@@ -2,11 +2,11 @@
   "name": "com.bbbirder.unity-injection",
   "displayName": "Unity Injection V2",
   "description": "Unity注入模块，可以运行时改变被注入函数实现。",
-  "version": "2.0.19",
+  "version": "2.1.4",
   "hideInEditor": false,
   "author": "bbbirder <502100554@qq.com>",
   "dependencies": {
-    "com.bbbirder.directattribute": "2.0.12",
+    "com.bbbirder.directattribute": "3.0.0",
     "com.unity.nuget.mono-cecil": "1.10.2"
   },
   "samples": [
@@ -15,5 +15,5 @@
       "path": "Samples~/MethodFix"
     }
   ],
-  "gitHead": "fa49cc070f60bda404513e03179ce070c40b41ae"
+  "gitHead": "8856af7f13f652d12f057d26aa666a0b10b92d04"
 }

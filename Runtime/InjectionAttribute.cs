@@ -2,7 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
-using com.bbbirder;
+using BBBirder.DirectAttribute;
 using UnityEngine.Assertions;
 
 namespace BBBirder.UnityInjection

@@ -46,6 +46,11 @@ namespace BBBirder.UnityInjection.Editor
             return null; //proxyMethods[targetMethod];
         }
 
+        public override bool TryGetOriginToken(MethodBase targetMethod, out int token)
+        {
+            throw new NotImplementedException();
+        }
+
         public override void UninstallAssembly(Assembly assembly)
         {
             var hooks = injectedAssemblies[assembly] = new();

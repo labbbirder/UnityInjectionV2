@@ -21,11 +21,11 @@ namespace BBBirder.UnityInjection
         /// <typeparam name="AsyncStateMachineAttribute"></typeparam>
         /// <returns></returns>
         public bool IsAsyncMethod
-            => m_IsAsyncMethod ??= targetInfo.GetCustomAttribute<AsyncStateMachineAttribute>() != null;
+            => m_IsAsyncMethod ??= TargetMember.GetCustomAttribute<AsyncStateMachineAttribute>() != null;
 
         public override IEnumerable<InjectionInfo> ProvideInjections()
         {
-            var InjectedMethod = this.targetInfo as MethodInfo;
+            var InjectedMethod = this.TargetMember as MethodInfo;
             // var OriginSavingField = ThisType.GetField(nameof(originFunc), BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static);
             var OriginSavingTarget = this;
 

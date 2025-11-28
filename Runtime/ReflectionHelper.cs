@@ -29,6 +29,7 @@ namespace BBBirder.UnityInjection
                 RuntimeHelpers.RunClassConstructor(type.TypeHandle);
                 return RuntimeHelpers.GetUninitializedObject(type);
             }
+
             static bool HasDefaultConstructor(Type type)
             {
                 var ctors = type.GetConstructors(BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
@@ -42,6 +43,7 @@ namespace BBBirder.UnityInjection
             {
                 return mthExpr.Method;
             }
+
             return null;
         }
 
@@ -62,26 +64,32 @@ namespace BBBirder.UnityInjection
             {
                 return mthExpr.Method;
             }
+
             if (expression.Body is NewExpression newExpr)
             {
                 return newExpr.Constructor;
             }
+
             if (expression.Body is MemberExpression memExpr)
             {
                 if (memExpr.Member is PropertyInfo pi)
                 {
                     return pi.GetGetMethod(true);
                 }
+
                 return null;
             }
+
             if (expression.Body is BinaryExpression binExpr)
             {
                 return binExpr.Method;
             }
+
             if (expression.Body is UnaryExpression unaExpr)
             {
                 return unaExpr.Method;
             }
+
             return null;
         }
 
@@ -219,49 +227,17 @@ namespace BBBirder.UnityInjection
             {
                 return null;
             }
+
             if (assembly.IsDynamic)
             {
                 return null;
             }
-            if (assembly.CodeBase == null)
-            {
-                return null;
-            }
-            string text = "file:///";
-            string codeBase = assembly.CodeBase;
-            if (codeBase.StartsWith(text, StringComparison.InvariantCultureIgnoreCase))
-            {
-                codeBase = codeBase.Substring(text.Length);
-                codeBase = codeBase.Replace('\\', '/');
-                if (File.Exists(codeBase))
-                {
-                    return codeBase;
-                }
-                if (!Path.IsPathRooted(codeBase))
-                {
-                    codeBase = (!File.Exists("/" + codeBase)) ? Path.GetFullPath(codeBase) : ("/" + codeBase);
-                }
-                if (File.Exists(codeBase))
-                {
-                    return codeBase;
-                }
-                try
-                {
-                    codeBase = assembly.Location;
-                }
-                catch
-                {
-                    return null;
-                }
-                if (File.Exists(codeBase))
-                {
-                    return codeBase;
-                }
-            }
+
             if (File.Exists(assembly.Location))
             {
                 return assembly.Location;
             }
+
             return null;
         }
     }

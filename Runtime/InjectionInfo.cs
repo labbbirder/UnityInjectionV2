@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
-using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
-using com.bbbirder;
+using BBBirder.DirectAttribute;
 
 #if UNITY_EDITOR
 using Mono.Cecil;
@@ -104,10 +104,7 @@ namespace BBBirder.UnityInjection
         internal static InjectionInfo[] RetriveAllInjectionInfos()
         {
             var assemblies = AppDomain.CurrentDomain.GetAssemblies();
-            if (s_allInjections == null)
-            {
-                s_allInjections = assemblies.SelectMany(RetrieveInjectionInfosFrom_Impl).ToArray();
-            }
+            s_allInjections ??= assemblies.SelectMany(RetrieveInjectionInfosFrom_Impl).ToArray();
             return s_allInjections;
         }
 
@@ -134,17 +131,116 @@ namespace BBBirder.UnityInjection
                     .SelectMany(attr => attr.ProvideInjections())
                     ;
                 var injections2 = Retriever.GetAllSubtypes<IInjectionProvider>(assembly)
-                    .Where(type => !type.IsInterface && !type.IsAbstract)
-                    .Select(type =>
-                    {
-                        IInjectionProvider provider = ReflectionHelper.CreateInstance(type) as IInjectionProvider;
-                        return provider;
-                    })
-                    .SelectMany(ii => ii.ProvideInjections())
+                    .SelectMany(type => GetInjectionInfos(type))
                     ;
                 s_cache[assembly] = injectionInfos = injections.Concat(injections2).ToArray();
             }
+
             return injectionInfos;
+        }
+
+        // static MethodInfo GetProvideMethod(Type type)
+        // {
+        //     var interfaceType = typeof(IInjectionProvider);
+        //     var interfaceMethod = interfaceType.GetMethod("ProvideInjections");
+
+        //     if (type.IsInterface)
+        //     {
+        //         var parameterTypes = interfaceMethod.GetParameters().Select(p => p.ParameterType).ToArray();
+
+        //         var methodOnImplInterface = type.GetMethod(
+        //             interfaceMethod.Name,
+        //             BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic,
+        //             null,
+        //             CallingConventions.Any,
+        //             parameterTypes,
+        //             null);
+
+        //         methodOnImplInterface ??= type.GetMethod(
+        //              $"{interfaceType.FullName}.{interfaceMethod.Name}",
+        //             BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic,
+        //             null,
+        //             CallingConventions.Any,
+        //             parameterTypes,
+        //             null);
+
+        //         return methodOnImplInterface;
+        //     }
+
+        //     var interfaceMap = type.GetInterfaceMap(interfaceType);
+
+        //     int index = Array.IndexOf(interfaceMap.InterfaceMethods, interfaceMethod);
+
+        //     if (index != ~0)
+        //     {
+        //         return interfaceMap.TargetMethods[index];
+        //     }
+
+        //     return null;
+        // }
+
+        public unsafe static IEnumerable<InjectionInfo> GetInjectionInfos(Type type)
+        {
+            /*
+            接口类和抽象类不再提供注入信息。
+            当其方法内部涉及到this时，这些类型无法提供正确类型的实例。（子类不能代表基类，实现上会产生差异）
+            对于类似IDataProxy的，需要影响子类的实现，有时会有有限个抽象基类或接口继承自IInjectionProvider,
+            其内部应把基类的信息也Provide出来
+            */
+            var empty = Array.Empty<InjectionInfo>();
+
+            // if (type.IsInterface)
+            // {
+            //     if (type.IsGenericType && !type.IsConstructedGenericType) return empty;
+
+            //     var miProvide = type.GetMethod(nameof(IInjectionProvider.ProvideInjections), ProviderFlags);
+
+            //     if (miProvide == null || miProvide.IsAbstract) return empty;
+            //     if (miProvide.IsGenericMethod && !miProvide.IsConstructedGenericMethod) return empty;
+
+            //     var @delegate = (delegate*<object, IEnumerable<InjectionInfo>>)miProvide.MethodHandle.GetFunctionPointer();
+            //     return @delegate(null);
+            // }
+
+            if (type.IsAbstract || type.IsInterface)
+            {
+                return empty;
+                // if (type.IsGenericType && !type.IsConstructedGenericType) return empty;
+
+                // var miProvide = GetProvideMethod(type);
+                // if (miProvide == null || miProvide.IsAbstract) return empty;
+                // if (miProvide.IsGenericMethod && !miProvide.IsConstructedGenericMethod) return empty;
+
+                // var subType = Retriever.GetAllSubtypes(type).FirstOrDefault(t => !t.IsAbstract && !t.IsInterface);
+                // if (subType == null) return empty;
+
+                // IInjectionProvider provider;
+                // try
+                // {
+                //     provider = ReflectionHelper.CreateInstance(subType) as IInjectionProvider;
+                // }
+                // catch
+                // {
+                //     provider = RuntimeHelpers.GetUninitializedObject(subType) as IInjectionProvider;
+                // }
+
+                // return miProvide.Invoke(provider, null) as IEnumerable<InjectionInfo>;
+            }
+            else
+            {
+                IInjectionProvider provider;
+                try
+                {
+                    provider = ReflectionHelper.CreateInstance(type) as IInjectionProvider;
+                }
+                catch
+                {
+                    provider = RuntimeHelpers.GetUninitializedObject(type) as IInjectionProvider;
+                }
+
+                if (provider is null) return empty;
+                return provider.ProvideInjections();
+            }
         }
     }
 }

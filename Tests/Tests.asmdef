@@ -5,7 +5,7 @@
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
         "BBBirder.UnityInjection",
-        "com.bbbirder.directattribute"
+        "BBBirder.DirectAttribute"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
